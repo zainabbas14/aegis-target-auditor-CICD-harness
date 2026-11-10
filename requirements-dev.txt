@@ -1,0 +1,5 @@
+pydantic==2.14.3
+reportlab==5.1.0
+faker==40.52.0
+pdfplumber==0.11.10
+pytest==9.2.0

@@ -1,0 +1,294 @@
+{
+  "schema_version": 1,
+  "seed": 20261009,
+  "scenarios": [
+    {
+      "scenario_id": "S01_clean_services",
+      "title": "Clean pass - services within rate card",
+      "invoice_pdf": "invoices/S01_clean_services.pdf",
+      "expected_verdict": "APPROVE_PENDING_HUMAN",
+      "expected_findings": [],
+      "rationale": "All rates at contract ceiling (not above), new invoice number, PO headroom ample.",
+      "expected_extraction": {
+        "invoice_number": "HDS-10233",
+        "vendor_name": "Halcyon Data Systems Ltd.",
+        "vendor_tax_id": "HDS-TX-4471902",
+        "po_number": "PO-2026-0418",
+        "invoice_date": "2026-10-02",
+        "due_date": "2026-11-01",
+        "remit_account": "FAKE-GB00-HALC-0000-1001",
+        "line_items": [
+          {
+            "item_code": "SENIOR_ENG",
+            "description": "Senior Data Engineer - Sep 2026",
+            "quantity": "60",
+            "unit_price": "120.00",
+            "amount": "7200.00"
+          },
+          {
+            "item_code": "DATA_ENG",
+            "description": "Data Engineer - Sep 2026",
+            "quantity": "40",
+            "unit_price": "105.00",
+            "amount": "4200.00"
+          }
+        ],
+        "subtotal": "11400.00",
+        "tax": "0.00",
+        "total": "11400.00",
+        "currency": "USD"
+      },
+      "item_codes_printed": false
+    },
+    {
+      "scenario_id": "S02_clean_goods_with_tax",
+      "title": "Clean pass - goods with sales tax",
+      "invoice_pdf": "invoices/S02_clean_goods_with_tax.pdf",
+      "expected_verdict": "APPROVE_PENDING_HUMAN",
+      "expected_findings": [],
+      "rationale": "Safety kits billed BELOW ceiling - an under-charge must not be flagged.",
+      "expected_extraction": {
+        "invoice_number": "MIS-55810",
+        "vendor_name": "Meridian Industrial Supply Inc.",
+        "vendor_tax_id": "MIS-TX-0938815",
+        "po_number": "PO-2026-0422",
+        "invoice_date": "2026-10-06",
+        "due_date": "2026-11-20",
+        "remit_account": "FAKE-US00-MERI-0000-1002",
+        "line_items": [
+          {
+            "item_code": "PALLET_RACK",
+            "description": "Selective pallet rack bay",
+            "quantity": "20",
+            "unit_price": "340.00",
+            "amount": "6800.00"
+          },
+          {
+            "item_code": "SAFETY_KIT",
+            "description": "PPE safety kit (Class 2)",
+            "quantity": "30",
+            "unit_price": "82.50",
+            "amount": "2475.00"
+          }
+        ],
+        "subtotal": "9275.00",
+        "tax": "463.75",
+        "total": "9738.75",
+        "currency": "USD"
+      },
+      "item_codes_printed": true
+    },
+    {
+      "scenario_id": "S03_rate_overcharge",
+      "title": "Rate anomaly - hourly rate above contract ceiling",
+      "invoice_pdf": "invoices/S03_rate_overcharge.pdf",
+      "expected_verdict": "BLOCK",
+      "expected_findings": [
+        "RATE_EXCEEDS_CONTRACT"
+      ],
+      "rationale": "150.00/hr vs 120.00/hr ceiling in Exhibit A: overcharge of 2,400.00 on 80 hrs.",
+      "expected_extraction": {
+        "invoice_number": "HDS-10241",
+        "vendor_name": "Halcyon Data Systems Ltd.",
+        "vendor_tax_id": "HDS-TX-4471902",
+        "po_number": "PO-2026-0418",
+        "invoice_date": "2026-10-14",
+        "due_date": "2026-11-13",
+        "remit_account": "FAKE-GB00-HALC-0000-1001",
+        "line_items": [
+          {
+            "item_code": "SENIOR_ENG",
+            "description": "Senior Data Engineer - Oct 2026 (1st half)",
+            "quantity": "80",
+            "unit_price": "150.00",
+            "amount": "12000.00"
+          }
+        ],
+        "subtotal": "12000.00",
+        "tax": "0.00",
+        "total": "12000.00",
+        "currency": "USD"
+      },
+      "item_codes_printed": false
+    },
+    {
+      "scenario_id": "S04_exact_duplicate",
+      "title": "Duplicate billing - invoice number already PAID",
+      "invoice_pdf": "invoices/S04_exact_duplicate.pdf",
+      "expected_verdict": "BLOCK",
+      "expected_findings": [
+        "DUPLICATE_INVOICE"
+      ],
+      "rationale": "KFC-9981 for 8,800.00 was PAID on 2026-09-18. Re-dated resubmission.",
+      "expected_extraction": {
+        "invoice_number": "KFC-9981",
+        "vendor_name": "Kestrel Freight Co.",
+        "vendor_tax_id": "KFC-TX-5520467",
+        "po_number": "PO-2026-0431",
+        "invoice_date": "2026-10-20",
+        "due_date": "2026-11-19",
+        "remit_account": "FAKE-PK00-KEST-0000-1003",
+        "line_items": [
+          {
+            "item_code": "FTL_LANE",
+            "description": "Full truckload, KHI-LHE lane",
+            "quantity": "4",
+            "unit_price": "2200.00",
+            "amount": "8800.00"
+          }
+        ],
+        "subtotal": "8800.00",
+        "tax": "0.00",
+        "total": "8800.00",
+        "currency": "USD"
+      },
+      "item_codes_printed": true
+    },
+    {
+      "scenario_id": "S05_arithmetic_mismatch",
+      "title": "Math mismatch - subtotal does not equal sum of lines",
+      "invoice_pdf": "invoices/S05_arithmetic_mismatch.pdf",
+      "expected_verdict": "BLOCK",
+      "expected_findings": [
+        "ARITHMETIC_MISMATCH"
+      ],
+      "rationale": "Lines sum to 4,700.00; header says 4,970.00 (digit transposition). Tax and total are consistent with the wrong header, so only line-level recomputation catches it.",
+      "expected_extraction": {
+        "invoice_number": "MIS-55902",
+        "vendor_name": "Meridian Industrial Supply Inc.",
+        "vendor_tax_id": "MIS-TX-0938815",
+        "po_number": "PO-2026-0422",
+        "invoice_date": "2026-10-21",
+        "due_date": "2026-12-05",
+        "remit_account": "FAKE-US00-MERI-0000-1002",
+        "line_items": [
+          {
+            "item_code": "SAFETY_KIT",
+            "description": "PPE safety kit (Class 2)",
+            "quantity": "40",
+            "unit_price": "85.00",
+            "amount": "3400.00"
+          },
+          {
+            "item_code": "FORKLIFT_SVC",
+            "description": "Forklift preventive service",
+            "quantity": "2",
+            "unit_price": "650.00",
+            "amount": "1300.00"
+          }
+        ],
+        "subtotal": "4970.00",
+        "tax": "248.50",
+        "total": "5218.50",
+        "currency": "USD"
+      },
+      "item_codes_printed": true
+    },
+    {
+      "scenario_id": "S06_po_budget_exceeded",
+      "title": "PO budget exceeded",
+      "invoice_pdf": "invoices/S06_po_budget_exceeded.pdf",
+      "expected_verdict": "BLOCK",
+      "expected_findings": [
+        "PO_BUDGET_EXCEEDED"
+      ],
+      "rationale": "Total 3,570.00 against 2,500.00 remaining on PO-2026-0457.",
+      "expected_extraction": {
+        "invoice_number": "MIS-55917",
+        "vendor_name": "Meridian Industrial Supply Inc.",
+        "vendor_tax_id": "MIS-TX-0938815",
+        "po_number": "PO-2026-0457",
+        "invoice_date": "2026-10-23",
+        "due_date": "2026-12-07",
+        "remit_account": "FAKE-US00-MERI-0000-1002",
+        "line_items": [
+          {
+            "item_code": "PALLET_RACK",
+            "description": "Selective pallet rack bay",
+            "quantity": "10",
+            "unit_price": "340.00",
+            "amount": "3400.00"
+          }
+        ],
+        "subtotal": "3400.00",
+        "tax": "170.00",
+        "total": "3570.00",
+        "currency": "USD"
+      },
+      "item_codes_printed": true
+    },
+    {
+      "scenario_id": "S07_remit_to_changed",
+      "title": "Bank-detail change - remit-to differs from vendor master (BEC pattern)",
+      "invoice_pdf": "invoices/S07_remit_to_changed.pdf",
+      "expected_verdict": "BLOCK",
+      "expected_findings": [
+        "REMIT_TO_MISMATCH"
+      ],
+      "rationale": "Everything else is clean. Remit-to account is not the one on file - the classic business-email-compromise signal. Must be verified out-of-band.",
+      "expected_extraction": {
+        "invoice_number": "KFC-10012",
+        "vendor_name": "Kestrel Freight Co.",
+        "vendor_tax_id": "KFC-TX-5520467",
+        "po_number": "PO-2026-0431",
+        "invoice_date": "2026-10-26",
+        "due_date": "2026-11-25",
+        "remit_account": "FAKE-AE00-XXXX-7731-0090",
+        "line_items": [
+          {
+            "item_code": "LTL_LANE",
+            "description": "Less-than-truckload, KHI-LHE lane",
+            "quantity": "3",
+            "unit_price": "780.00",
+            "amount": "2340.00"
+          },
+          {
+            "item_code": "FUEL_SURCH",
+            "description": "Fuel surcharge",
+            "quantity": "3",
+            "unit_price": "180.00",
+            "amount": "540.00"
+          }
+        ],
+        "subtotal": "2880.00",
+        "tax": "0.00",
+        "total": "2880.00",
+        "currency": "USD"
+      },
+      "item_codes_printed": true
+    },
+    {
+      "scenario_id": "S08_near_duplicate",
+      "title": "Possible duplicate - same vendor and amount, new number, 5 days apart",
+      "invoice_pdf": "invoices/S08_near_duplicate.pdf",
+      "expected_verdict": "REVIEW",
+      "expected_findings": [
+        "POSSIBLE_DUPLICATE"
+      ],
+      "rationale": "HDS-10249 (4,000.00) paid 5 days earlier. A monthly retainer billed twice in one month is suspicious but not proof - soft finding, route to analyst.",
+      "expected_extraction": {
+        "invoice_number": "HDS-10250",
+        "vendor_name": "Halcyon Data Systems Ltd.",
+        "vendor_tax_id": "HDS-TX-4471902",
+        "po_number": "PO-2026-0418",
+        "invoice_date": "2026-10-14",
+        "due_date": "2026-11-13",
+        "remit_account": "FAKE-GB00-HALC-0000-1001",
+        "line_items": [
+          {
+            "item_code": "SUPPORT_RET",
+            "description": "Platform Support Retainer - Oct 2026",
+            "quantity": "1",
+            "unit_price": "4000.00",
+            "amount": "4000.00"
+          }
+        ],
+        "subtotal": "4000.00",
+        "tax": "0.00",
+        "total": "4000.00",
+        "currency": "USD"
+      },
+      "item_codes_printed": false
+    }
+  ]
+}
