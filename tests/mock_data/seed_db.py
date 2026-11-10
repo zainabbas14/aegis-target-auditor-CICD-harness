@@ -14,12 +14,13 @@ import logging
 import random
 import sqlite3
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
 from faker import Faker
 
+from auditor.domain.enums import PaymentStatus
 from tests.mock_data.fixtures import (
     CONTRACTS,
     PURCHASE_ORDERS,
@@ -27,7 +28,6 @@ from tests.mock_data.fixtures import (
     SCENARIOS,
     VENDORS,
     Payment,
-    PaymentStatus,
     reserved_invoice_numbers,
 )
 
@@ -71,9 +71,7 @@ def _noise_payments(rng: random.Random, fake: Faker) -> tuple[list[Payment], lis
         for _ in range(rng.randint(4, 7)):
             number = f"{prefix}-{base + rng.randint(1, 999)}"
             amount = Decimal(rng.randint(90_000, 900_000)) / 100
-            if number in reserved or amount in forbidden_amounts or any(
-                p.invoice_number == number for p in payments
-            ):
+            if number in reserved or amount in forbidden_amounts or any(p.invoice_number == number for p in payments):
                 continue
             payments.append(
                 Payment(
@@ -89,7 +87,9 @@ def _noise_payments(rng: random.Random, fake: Faker) -> tuple[list[Payment], lis
     other_vendors: list[tuple[str, str, str, str]] = []
     for i in range(5):
         vid = f"V-2{i:03d}"
-        other_vendors.append((vid, fake.company(), f"OTH-TX-{rng.randint(1_000_000, 9_999_999)}", f"FAKE-XX00-OTHR-0000-{2000 + i}"))
+        other_vendors.append(
+            (vid, fake.company(), f"OTH-TX-{rng.randint(1_000_000, 9_999_999)}", f"FAKE-XX00-OTHR-0000-{2000 + i}")
+        )
         for j in range(rng.randint(3, 6)):
             payments.append(
                 Payment(
@@ -111,7 +111,7 @@ def seed(db_path: Path, contracts_dir: Path, seed_value: int = DEFAULT_SEED) -> 
 
     db_path.parent.mkdir(parents=True, exist_ok=True)
     db_path.unlink(missing_ok=True)
-    created_at = datetime(2026, 1, 1, tzinfo=timezone.utc).isoformat()
+    created_at = datetime(2026, 1, 1, tzinfo=UTC).isoformat()
 
     noise, other_vendors = _noise_payments(rng, fake)
     all_payments = [*SCENARIO_PAYMENTS, *noise]
@@ -129,19 +129,31 @@ def seed(db_path: Path, contracts_dir: Path, seed_value: int = DEFAULT_SEED) -> 
             for c in CONTRACTS:
                 conn.execute(
                     "INSERT INTO contracts VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    (c.contract_ref, c.vendor_id, c.title, c.effective_date.isoformat(),
-                     c.expiry_date.isoformat(), c.payment_terms_days, c.currency,
-                     str(contracts_dir / f"{c.contract_ref}.pdf")),
+                    (
+                        c.contract_ref,
+                        c.vendor_id,
+                        c.title,
+                        c.effective_date.isoformat(),
+                        c.expiry_date.isoformat(),
+                        c.payment_terms_days,
+                        c.currency,
+                        str(contracts_dir / f"{c.contract_ref}.pdf"),
+                    ),
                 )
                 conn.executemany(
                     "INSERT INTO contract_rates VALUES (?, ?, ?, ?, ?)",
-                    [(c.contract_ref, r.item_code, r.description, r.unit, to_cents(r.max_unit_price))
-                     for r in c.rate_card],
+                    [
+                        (c.contract_ref, r.item_code, r.description, r.unit, to_cents(r.max_unit_price))
+                        for r in c.rate_card
+                    ],
                 )
             for po in PURCHASE_ORDERS:
                 consumed = sum(
-                    (p.amount for p in all_payments
-                     if p.po_number == po.po_number and p.status is not PaymentStatus.VOID),
+                    (
+                        p.amount
+                        for p in all_payments
+                        if p.po_number == po.po_number and p.status is not PaymentStatus.VOID
+                    ),
                     Decimal("0"),
                 )
                 conn.execute(
@@ -153,9 +165,17 @@ def seed(db_path: Path, contracts_dir: Path, seed_value: int = DEFAULT_SEED) -> 
                 "INSERT INTO historical_payments "
                 "(invoice_number, vendor_id, po_number, amount_cents, payment_date, status) "
                 "VALUES (?, ?, ?, ?, ?, ?)",
-                [(p.invoice_number, p.vendor_id, p.po_number, to_cents(p.amount),
-                  p.payment_date.isoformat(), p.status.value)
-                 for p in sorted(all_payments, key=lambda p: (p.payment_date, p.invoice_number))],
+                [
+                    (
+                        p.invoice_number,
+                        p.vendor_id,
+                        p.po_number,
+                        to_cents(p.amount),
+                        p.payment_date.isoformat(),
+                        p.status.value,
+                    )
+                    for p in sorted(all_payments, key=lambda p: (p.payment_date, p.invoice_number))
+                ],
             )
     finally:
         conn.close()

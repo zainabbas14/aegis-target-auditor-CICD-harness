@@ -4,6 +4,9 @@ Every artifact (invoice PDFs, contract PDFs, the ERP database, and the golden
 expected-outcomes file) is rendered from the specs in this module. Nothing is
 hand-edited downstream, so the three data modalities cannot drift apart.
 
+Domain enums are imported from ``auditor.domain``: test data speaks the
+production vocabulary, never a parallel copy of it.
+
 Monetary values are ``Decimal`` here and integer minor units (cents) in the DB.
 Floats never touch money.
 """
@@ -12,44 +15,21 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
-from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
+
+from auditor.domain.enums import FindingCode, PaymentStatus, Verdict, verdict_for
 
 CENT = Decimal("0.01")
 
 
 def money(value: Decimal) -> Decimal:
-    """Quantize to cents using banker-safe half-up rounding (invoice convention)."""
+    """Quantize to cents using half-up rounding (invoice convention)."""
     return value.quantize(CENT, rounding=ROUND_HALF_UP)
 
 
 class _Frozen(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-
-
-# --------------------------------------------------------------------------- #
-# Enumerations shared with the application layer
-# --------------------------------------------------------------------------- #
-class FindingCode(StrEnum):
-    RATE_EXCEEDS_CONTRACT = "RATE_EXCEEDS_CONTRACT"
-    DUPLICATE_INVOICE = "DUPLICATE_INVOICE"
-    POSSIBLE_DUPLICATE = "POSSIBLE_DUPLICATE"
-    ARITHMETIC_MISMATCH = "ARITHMETIC_MISMATCH"
-    PO_BUDGET_EXCEEDED = "PO_BUDGET_EXCEEDED"
-    REMIT_TO_MISMATCH = "REMIT_TO_MISMATCH"
-
-
-class Verdict(StrEnum):
-    APPROVE_PENDING_HUMAN = "APPROVE_PENDING_HUMAN"  # clean -> HITL breakpoint
-    REVIEW = "REVIEW"  # soft signal, route to AP analyst
-    BLOCK = "BLOCK"  # hard stop, no payment path
-
-
-class PaymentStatus(StrEnum):
-    PAID = "PAID"
-    PENDING = "PENDING"
-    VOID = "VOID"
 
 
 # --------------------------------------------------------------------------- #
@@ -174,11 +154,9 @@ class Scenario(_Frozen):
 
     @model_validator(mode="after")
     def _verdict_consistent(self) -> Scenario:
-        hard = self.expected_findings - {FindingCode.POSSIBLE_DUPLICATE}
-        if hard and self.expected_verdict is not Verdict.BLOCK:
-            raise ValueError(f"{self.scenario_id}: hard findings require BLOCK")
-        if not self.expected_findings and self.expected_verdict is not Verdict.APPROVE_PENDING_HUMAN:
-            raise ValueError(f"{self.scenario_id}: clean invoice must route to HITL approval")
+        derived = verdict_for(self.expected_findings)
+        if derived is not self.expected_verdict:
+            raise ValueError(f"{self.scenario_id}: findings imply {derived}, spec says {self.expected_verdict}")
         return self
 
 
@@ -229,9 +207,16 @@ CONTRACTS: tuple[Contract, ...] = (
         expiry_date=date(2027, 6, 30),
         payment_terms_days=30,
         rate_card=(
-            RateCardLine(item_code="SENIOR_ENG", description="Senior Data Engineer", unit="hour", max_unit_price=D("120.00")),
+            RateCardLine(
+                item_code="SENIOR_ENG", description="Senior Data Engineer", unit="hour", max_unit_price=D("120.00")
+            ),
             RateCardLine(item_code="DATA_ENG", description="Data Engineer", unit="hour", max_unit_price=D("105.00")),
-            RateCardLine(item_code="SUPPORT_RET", description="Platform Support Retainer", unit="month", max_unit_price=D("4000.00")),
+            RateCardLine(
+                item_code="SUPPORT_RET",
+                description="Platform Support Retainer",
+                unit="month",
+                max_unit_price=D("4000.00"),
+            ),
         ),
     ),
     Contract(
@@ -242,9 +227,21 @@ CONTRACTS: tuple[Contract, ...] = (
         expiry_date=date(2027, 10, 31),
         payment_terms_days=45,
         rate_card=(
-            RateCardLine(item_code="PALLET_RACK", description="Selective pallet rack bay", unit="unit", max_unit_price=D("340.00")),
-            RateCardLine(item_code="SAFETY_KIT", description="PPE safety kit (Class 2)", unit="unit", max_unit_price=D("85.00")),
-            RateCardLine(item_code="FORKLIFT_SVC", description="Forklift preventive service", unit="visit", max_unit_price=D("650.00")),
+            RateCardLine(
+                item_code="PALLET_RACK",
+                description="Selective pallet rack bay",
+                unit="unit",
+                max_unit_price=D("340.00"),
+            ),
+            RateCardLine(
+                item_code="SAFETY_KIT", description="PPE safety kit (Class 2)", unit="unit", max_unit_price=D("85.00")
+            ),
+            RateCardLine(
+                item_code="FORKLIFT_SVC",
+                description="Forklift preventive service",
+                unit="visit",
+                max_unit_price=D("650.00"),
+            ),
         ),
     ),
     Contract(
@@ -255,8 +252,18 @@ CONTRACTS: tuple[Contract, ...] = (
         expiry_date=date(2027, 2, 28),
         payment_terms_days=30,
         rate_card=(
-            RateCardLine(item_code="FTL_LANE", description="Full truckload, KHI-LHE lane", unit="trip", max_unit_price=D("2200.00")),
-            RateCardLine(item_code="LTL_LANE", description="Less-than-truckload, KHI-LHE lane", unit="trip", max_unit_price=D("780.00")),
+            RateCardLine(
+                item_code="FTL_LANE",
+                description="Full truckload, KHI-LHE lane",
+                unit="trip",
+                max_unit_price=D("2200.00"),
+            ),
+            RateCardLine(
+                item_code="LTL_LANE",
+                description="Less-than-truckload, KHI-LHE lane",
+                unit="trip",
+                max_unit_price=D("780.00"),
+            ),
             RateCardLine(item_code="FUEL_SURCH", description="Fuel surcharge", unit="trip", max_unit_price=D("180.00")),
         ),
     ),
@@ -272,10 +279,20 @@ PURCHASE_ORDERS: tuple[PurchaseOrder, ...] = (
 # Payments that specific scenarios depend on. Background noise is added by
 # seed_db.py with a fixed RNG seed and guaranteed not to collide with these.
 SCENARIO_PAYMENTS: tuple[Payment, ...] = (
-    Payment(invoice_number="KFC-9981", vendor_id="V-1003", po_number="PO-2026-0431",
-            amount=D("8800.00"), payment_date=date(2026, 9, 18)),
-    Payment(invoice_number="HDS-10249", vendor_id="V-1001", po_number="PO-2026-0418",
-            amount=D("4000.00"), payment_date=date(2026, 10, 9)),
+    Payment(
+        invoice_number="KFC-9981",
+        vendor_id="V-1003",
+        po_number="PO-2026-0431",
+        amount=D("8800.00"),
+        payment_date=date(2026, 9, 18),
+    ),
+    Payment(
+        invoice_number="HDS-10249",
+        vendor_id="V-1001",
+        po_number="PO-2026-0418",
+        amount=D("4000.00"),
+        payment_date=date(2026, 10, 9),
+    ),
 )
 
 _HDS, _MIS, _KFC = "V-1001", "V-1002", "V-1003"
@@ -290,8 +307,11 @@ SCENARIOS: tuple[Scenario, ...] = (
         scenario_id="S01_clean_services",
         title="Clean pass - services within rate card",
         invoice=InvoiceSpec(
-            invoice_number="HDS-10233", vendor_id=_HDS, po_number="PO-2026-0418",
-            invoice_date=date(2026, 10, 2), terms_days=30,
+            invoice_number="HDS-10233",
+            vendor_id=_HDS,
+            po_number="PO-2026-0418",
+            invoice_date=date(2026, 10, 2),
+            terms_days=30,
             lines=(
                 _ln("SENIOR_ENG", "Senior Data Engineer - Sep 2026", "60", "120.00"),
                 _ln("DATA_ENG", "Data Engineer - Sep 2026", "40", "105.00"),
@@ -305,8 +325,12 @@ SCENARIOS: tuple[Scenario, ...] = (
         scenario_id="S02_clean_goods_with_tax",
         title="Clean pass - goods with sales tax",
         invoice=InvoiceSpec(
-            invoice_number="MIS-55810", vendor_id=_MIS, po_number="PO-2026-0422",
-            invoice_date=date(2026, 10, 6), terms_days=45, tax_rate=D("0.05"),
+            invoice_number="MIS-55810",
+            vendor_id=_MIS,
+            po_number="PO-2026-0422",
+            invoice_date=date(2026, 10, 6),
+            terms_days=45,
+            tax_rate=D("0.05"),
             lines=(
                 _ln("PALLET_RACK", "Selective pallet rack bay", "20", "340.00"),
                 _ln("SAFETY_KIT", "PPE safety kit (Class 2)", "30", "82.50"),
@@ -320,8 +344,11 @@ SCENARIOS: tuple[Scenario, ...] = (
         scenario_id="S03_rate_overcharge",
         title="Rate anomaly - hourly rate above contract ceiling",
         invoice=InvoiceSpec(
-            invoice_number="HDS-10241", vendor_id=_HDS, po_number="PO-2026-0418",
-            invoice_date=date(2026, 10, 14), terms_days=30,
+            invoice_number="HDS-10241",
+            vendor_id=_HDS,
+            po_number="PO-2026-0418",
+            invoice_date=date(2026, 10, 14),
+            terms_days=30,
             lines=(_ln("SENIOR_ENG", "Senior Data Engineer - Oct 2026 (1st half)", "80", "150.00"),),
         ),
         expected_verdict=Verdict.BLOCK,
@@ -332,8 +359,11 @@ SCENARIOS: tuple[Scenario, ...] = (
         scenario_id="S04_exact_duplicate",
         title="Duplicate billing - invoice number already PAID",
         invoice=InvoiceSpec(
-            invoice_number="KFC-9981", vendor_id=_KFC, po_number="PO-2026-0431",
-            invoice_date=date(2026, 10, 20), terms_days=30,
+            invoice_number="KFC-9981",
+            vendor_id=_KFC,
+            po_number="PO-2026-0431",
+            invoice_date=date(2026, 10, 20),
+            terms_days=30,
             lines=(_ln("FTL_LANE", "Full truckload, KHI-LHE lane", "4", "2200.00"),),
         ),
         expected_verdict=Verdict.BLOCK,
@@ -344,8 +374,12 @@ SCENARIOS: tuple[Scenario, ...] = (
         scenario_id="S05_arithmetic_mismatch",
         title="Math mismatch - subtotal does not equal sum of lines",
         invoice=InvoiceSpec(
-            invoice_number="MIS-55902", vendor_id=_MIS, po_number="PO-2026-0422",
-            invoice_date=date(2026, 10, 21), terms_days=45, tax_rate=D("0.05"),
+            invoice_number="MIS-55902",
+            vendor_id=_MIS,
+            po_number="PO-2026-0422",
+            invoice_date=date(2026, 10, 21),
+            terms_days=45,
+            tax_rate=D("0.05"),
             lines=(
                 _ln("SAFETY_KIT", "PPE safety kit (Class 2)", "40", "85.00"),
                 _ln("FORKLIFT_SVC", "Forklift preventive service", "2", "650.00"),
@@ -361,8 +395,12 @@ SCENARIOS: tuple[Scenario, ...] = (
         scenario_id="S06_po_budget_exceeded",
         title="PO budget exceeded",
         invoice=InvoiceSpec(
-            invoice_number="MIS-55917", vendor_id=_MIS, po_number="PO-2026-0457",
-            invoice_date=date(2026, 10, 23), terms_days=45, tax_rate=D("0.05"),
+            invoice_number="MIS-55917",
+            vendor_id=_MIS,
+            po_number="PO-2026-0457",
+            invoice_date=date(2026, 10, 23),
+            terms_days=45,
+            tax_rate=D("0.05"),
             lines=(_ln("PALLET_RACK", "Selective pallet rack bay", "10", "340.00"),),
         ),
         expected_verdict=Verdict.BLOCK,
@@ -373,8 +411,11 @@ SCENARIOS: tuple[Scenario, ...] = (
         scenario_id="S07_remit_to_changed",
         title="Bank-detail change - remit-to differs from vendor master (BEC pattern)",
         invoice=InvoiceSpec(
-            invoice_number="KFC-10012", vendor_id=_KFC, po_number="PO-2026-0431",
-            invoice_date=date(2026, 10, 26), terms_days=30,
+            invoice_number="KFC-10012",
+            vendor_id=_KFC,
+            po_number="PO-2026-0431",
+            invoice_date=date(2026, 10, 26),
+            terms_days=30,
             lines=(
                 _ln("LTL_LANE", "Less-than-truckload, KHI-LHE lane", "3", "780.00"),
                 _ln("FUEL_SURCH", "Fuel surcharge", "3", "180.00"),
@@ -390,8 +431,11 @@ SCENARIOS: tuple[Scenario, ...] = (
         scenario_id="S08_near_duplicate",
         title="Possible duplicate - same vendor and amount, new number, 5 days apart",
         invoice=InvoiceSpec(
-            invoice_number="HDS-10250", vendor_id=_HDS, po_number="PO-2026-0418",
-            invoice_date=date(2026, 10, 14), terms_days=30,
+            invoice_number="HDS-10250",
+            vendor_id=_HDS,
+            po_number="PO-2026-0418",
+            invoice_date=date(2026, 10, 14),
+            terms_days=30,
             lines=(_ln("SUPPORT_RET", "Platform Support Retainer - Oct 2026", "1", "4000.00"),),
         ),
         expected_verdict=Verdict.REVIEW,
@@ -412,6 +456,4 @@ def contract_by_ref(ref: str) -> Contract:
 
 def reserved_invoice_numbers() -> frozenset[str]:
     """Invoice numbers background noise must never reuse."""
-    return frozenset(
-        {s.invoice.invoice_number for s in SCENARIOS} | {p.invoice_number for p in SCENARIO_PAYMENTS}
-    )
+    return frozenset({s.invoice.invoice_number for s in SCENARIOS} | {p.invoice_number for p in SCENARIO_PAYMENTS})

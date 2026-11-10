@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install
+        run: |
+          pip install -r requirements-dev.txt
+          pip install -e . --no-deps
+
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Type check
+        run: mypy
+
+      - name: Test
+        run: pytest
+
+      - name: Committed fixtures match a fresh build
+        run: |
+          python -m tests.mock_data.build
+          git diff --exit-code -- tests/mock_data/generated \
+            || (echo "::error::Generated mock data is stale. Run 'python -m tests.mock_data.build' and commit." && exit 1)

@@ -48,8 +48,13 @@ def _golden(s: Scenario) -> dict[str, Any]:
             "due_date": inv.due_date.isoformat(),
             "remit_account": inv.remit_account_override or vendor.remit_account,
             "line_items": [
-                {"item_code": ln.item_code, "description": ln.description,
-                 "quantity": str(ln.quantity), "unit_price": str(ln.unit_price), "amount": str(ln.amount)}
+                {
+                    "item_code": ln.item_code,
+                    "description": ln.description,
+                    "quantity": str(ln.quantity),
+                    "unit_price": str(ln.unit_price),
+                    "amount": str(ln.amount),
+                }
                 for ln in inv.lines
             ],
             "subtotal": str(inv.printed_subtotal),

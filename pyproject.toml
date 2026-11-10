@@ -1,8 +1,57 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "multi-agent-auditor"
-version = "0.1.0"
+name = "multi-agent-finance-auditor"
+version = "0.2.0"
+description = "Multi-agent AP auditor: invoices vs contracts vs payment history, with HITL approval"
 requires-python = ">=3.12"
+dependencies = ["pydantic>=2.7,<3"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+auditor = ["py.typed"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+log_level = "INFO"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["src", "."]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "S", "N", "PL", "PT"]  # no TCH: Pydantic needs annotations importable at runtime
+ignore = [
+    "PLR2004",  # magic values are fine in tests and fixtures
+    "PLR0913",  # explicit keyword-heavy constructors are intentional
+    "RUF001",   # unicode in strings
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S311", "PLR0915"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["auditor", "tests"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+files = ["src", "tests"]
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = ["reportlab.*", "pdfplumber.*"]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
