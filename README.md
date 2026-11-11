@@ -10,7 +10,29 @@ found, and stops anomalous payments before money moves. Clean invoices pause for
 ever paid autonomously.
 
 > **Status:** M0–M3 complete - deterministic audit core, read-only ledger, HTTP API, Docker stack, and the
-> LangGraph agent workflow with HITL approval and deterministic fallbacks. See [Roadmap](#roadmap).
+> LangGraph agent workflow with HITL approval and deterministic fallbacks. See [Roadmap](#roadmap) and
+> [Known limitations](#known-limitations).
+
+**Try it in two commands** (no API key required):
+
+```bash
+cp .env.example .env && docker compose up --build -d --wait
+./scripts/demo.sh
+```
+
+<!-- Add a terminal screenshot of ./scripts/demo.sh output here:
+![demo](docs/images/demo.png) -->
+
+**At a glance**
+
+- **8 golden scenarios** across 3 deliberately different invoice layouts - rate overcharge, exact and near
+  duplicates, transposed subtotal, PO overrun, and a bank-detail change (the business-email-compromise pattern)
+- **11 finding codes**, each with quantified evidence; fail-closed on anything that couldn't be verified
+- **Claude reads, rules decide:** LLM extraction is grounded against the PDF's own text layer before it can
+  influence anything
+- **Human approval that survives restarts**, a four-eyes rule, and a pre-payment re-audit
+- **Works with no LLM at all** - every LLM step has a deterministic fallback, exercised in CI on every push
+- **161 tests**, mypy `--strict`, every ledger test run against both SQLite and Postgres
 
 ---
 
@@ -118,9 +140,9 @@ cp .env.example .env     # set the three passwords; optionally ANTHROPIC_API_KEY
 docker compose up --build
 ```
 
-Interactive API docs: <http://localhost:8000/docs>
+Interactive API docs: <http://localhost:8000/docs> · Scripted walkthrough: `./scripts/demo.sh`
 
-### The agent workflow
+### The agent workflow, step by step
 
 ```bash
 G=tests/mock_data/generated
@@ -158,6 +180,22 @@ curl -s -X POST localhost:8000/v1/audits -H 'content-type: application/json' \
 ```
 
 Reset all state with `docker compose down -v`.
+
+---
+
+## What CI verifies on every push
+
+Every claim in this README is a test. Two jobs run on each push:
+
+| Job | What it proves |
+|---|---|
+| **quality** | ruff + format, mypy `--strict`, 161 tests against both SQLite and a Postgres service container, and that committed test fixtures match a fresh, byte-reproducible build |
+| **compose-smoke** | `docker compose up` from a clean checkout; all 8 golden scenarios replayed over HTTP; the full agent workflow with no LLM key (degraded parse → manual entry → approval); the API container **restarted mid-approval** with the approval still pending afterwards; the four-eyes rule returning `403`; final `PAID`; and the application's database role failing to write |
+
+The real Claude API is never called in CI. The workflow is tested with a scripted fake LLM - including the
+failure modes (unavailable, refusal, truncation, hallucinated values, "helpfully" corrected arithmetic) - and
+the Anthropic adapter is exercised through the real SDK against a mock HTTP transport. A live evaluation
+against the real API exists (`pytest -m live`) but costs tokens, so it is opt-in.
 
 ---
 
@@ -221,10 +259,33 @@ src/auditor/
   config.py        pydantic-settings
   logging_setup.py structured JSON logging with request IDs
 db/postgres/       schema, read-only ledger role, checkpoint role (docker-entrypoint-initdb.d)
+scripts/demo.sh    end-to-end walkthrough against a running stack
 tests/             unit, golden end-to-end (both backends), workflow (scripted fake LLM), API, live eval
 .github/workflows/ lint → types → tests (SQLite + Postgres) → fixture freshness → docker compose smoke test
                    (golden scenarios over HTTP, degraded agent path, restart-surviving approval, four-eyes)
 ```
+
+---
+
+## Known limitations
+
+This is a portfolio system built to production standards, not a production system. The gaps, stated plainly:
+
+- **No authentication.** `approver` and `entered_by` are free-text fields; anyone who can reach the API can
+  approve. The four-eyes check compares names, not identities. (M5: real auth and roles.)
+- **Executed payments are not written back to the ledger.** The ledger is read-only by design and payments are
+  simulated, so the same invoice could be approved again in a *new* run. Within a run, payment is idempotent;
+  across runs it is not. (M5: durable payment outbox feeding the duplicate check.)
+- **No live accuracy numbers yet.** Extraction quality on real Claude calls is measured by `pytest -m live`, which
+  has not been run for this README. The tests prove the *guards* around the model, not the model's accuracy.
+- **Grounding is necessary, not sufficient.** It proves a value appears on the page, not that it was read from
+  the right place - a short amount like `540.00` could match inside `2,540.00`. Rules and a human still follow.
+- **Scanned PDFs go straight to manual entry.** Without a text layer, extractions can't be grounded, so the
+  system refuses to trust them rather than adding OCR.
+- **Uploads are processed synchronously.** Fine for a demo; production would queue them. The per-run decision
+  lock is per-process; multiple replicas would need a database lock.
+- **Line items are matched to the contract deterministically only.** Descriptions that don't match a rate-card
+  entry exactly are escalated to a human rather than fuzzy-matched.
 
 ---
 
@@ -238,4 +299,4 @@ tests/             unit, golden end-to-end (both backends), workflow (scripted f
 - [ ] **M4** Contract agent (Claude reads contract PDFs → rate card, cross-checked against the ERP mirror),
       LLM-proposed line-item mappings for human confirmation, evaluation harness with real CUAD contracts
 - [ ] **M5** Authentication and roles for approvers, append-only audit log, async job queue for uploads,
-      durable payment outbox
+      durable payment outbox written back to the ledger
