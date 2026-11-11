@@ -1,0 +1,22 @@
+{
+  "invoice_number": "HDS-10250",
+  "vendor_name": "Halcyon Data Systems Ltd.",
+  "vendor_tax_id": "HDS-TX-4471902",
+  "po_number": "PO-2026-0418",
+  "invoice_date": "2026-10-14",
+  "due_date": "2026-11-13",
+  "remit_account": "FAKE-GB00-HALC-0000-1001",
+  "line_items": [
+    {
+      "item_code": null,
+      "description": "Platform Support Retainer - Oct 2026",
+      "quantity": "1",
+      "unit_price": "4000.00",
+      "amount": "4000.00"
+    }
+  ],
+  "subtotal": "4000.00",
+  "tax": "0.00",
+  "total": "4000.00",
+  "currency": "USD"
+}

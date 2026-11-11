@@ -1,0 +1,22 @@
+{
+  "invoice_number": "MIS-55917",
+  "vendor_name": "Meridian Industrial Supply Inc.",
+  "vendor_tax_id": "MIS-TX-0938815",
+  "po_number": "PO-2026-0457",
+  "invoice_date": "2026-10-23",
+  "due_date": "2026-12-07",
+  "remit_account": "FAKE-US00-MERI-0000-1002",
+  "line_items": [
+    {
+      "item_code": "PALLET_RACK",
+      "description": "Selective pallet rack bay",
+      "quantity": "10",
+      "unit_price": "340.00",
+      "amount": "3400.00"
+    }
+  ],
+  "subtotal": "3400.00",
+  "tax": "170.00",
+  "total": "3570.00",
+  "currency": "USD"
+}

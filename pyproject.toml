@@ -4,10 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "multi-agent-finance-auditor"
-version = "0.2.0"
+version = "0.3.0"
 description = "Multi-agent AP auditor: invoices vs contracts vs payment history, with HITL approval"
 requires-python = ">=3.12"
-dependencies = ["pydantic>=2.7,<3"]
+dependencies = [
+    "pydantic>=2.7,<3",
+    "pydantic-settings>=2.4,<3",
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.30,<1",
+    "psycopg[binary]>=3.2,<4",
+    "psycopg-pool>=3.2,<4",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -19,6 +26,7 @@ auditor = ["py.typed"]
 pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers --strict-config"
+markers = ["postgres: needs AUDITOR_TEST_DATABASE_URL (a superuser DSN); skipped otherwise"]
 log_level = "INFO"
 
 [tool.ruff]

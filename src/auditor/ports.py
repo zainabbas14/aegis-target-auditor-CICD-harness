@@ -15,6 +15,11 @@ from auditor.domain.models import PaymentRecord, PurchaseOrderRecord, RateCardEn
 
 
 class LedgerReader(Protocol):
+    def ping(self) -> None:
+        """Raise if the backend is unreachable. Used by the readiness probe."""
+
+    def close(self) -> None: ...
+
     def vendor_by_tax_id(self, tax_id: str) -> VendorRecord | None: ...
 
     def purchase_order(self, po_number: str) -> PurchaseOrderRecord | None: ...

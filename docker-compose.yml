@@ -1,0 +1,49 @@
+# One command:  cp .env.example .env  &&  docker compose up --build
+#   API      http://localhost:8000/docs
+#   Postgres localhost:5432 (bound to loopback only)
+name: finance-auditor
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: erp
+      POSTGRES_USER: erp_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # Consumed by 003_readonly_role.sh on first init only.
+      AUDITOR_DB_RO_PASSWORD: ${AUDITOR_DB_RO_PASSWORD:?set AUDITOR_DB_RO_PASSWORD in .env}
+    volumes:
+      - ./db/postgres/001_schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+      - ./tests/mock_data/generated/postgres/002_seed.sql:/docker-entrypoint-initdb.d/002_seed.sql:ro
+      - ./db/postgres/003_readonly_role.sh:/docker-entrypoint-initdb.d/003_readonly_role.sh:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # -h 127.0.0.1 matters: during init scripts the server listens on the
+      # unix socket only, so a TCP check can't report "ready" before seeding ends.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U erp_admin -d erp"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  api:
+    build: .
+    environment:
+      AUDITOR_ENV: ${AUDITOR_ENV:-dev}
+      AUDITOR_LEDGER_BACKEND: postgres
+      # The API only ever receives the read-only role's credentials.
+      AUDITOR_DATABASE_URL: postgresql://auditor_ro:${AUDITOR_DB_RO_PASSWORD}@postgres:5432/erp
+      AUDITOR_LOG_LEVEL: ${AUDITOR_LOG_LEVEL:-INFO}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+volumes:
+  pgdata:

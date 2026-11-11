@@ -16,6 +16,18 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      # Enables the Postgres half of the backend-parametrised suite.
+      AUDITOR_TEST_DATABASE_URL: postgresql://postgres:ci@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v7
 
@@ -38,7 +50,7 @@ jobs:
       - name: Type check
         run: mypy
 
-      - name: Test
+      - name: Test (SQLite + Postgres)
         run: pytest
 
       - name: Committed fixtures match a fresh build
@@ -46,3 +58,51 @@ jobs:
           python -m tests.mock_data.build
           git diff --exit-code -- tests/mock_data/generated \
             || (echo "::error::Generated mock data is stale. Run 'python -m tests.mock_data.build' and commit." && exit 1)
+
+  compose-smoke:
+    # The README promises `docker compose up` works. This job proves it on every push.
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Create .env with random secrets
+        run: |
+          cp .env.example .env
+          sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 16)/" .env
+          sed -i "s/^AUDITOR_DB_RO_PASSWORD=.*/AUDITOR_DB_RO_PASSWORD=$(openssl rand -hex 16)/" .env
+
+      - name: Start stack
+        run: docker compose up -d --build --wait --wait-timeout 180
+
+      - name: Readiness
+        run: curl -fsS http://127.0.0.1:8000/readyz
+
+      - name: Golden scenarios over HTTP
+        run: |
+          for f in tests/mock_data/generated/requests/*.json; do
+            id=$(basename "$f" .json)
+            want=$(jq -r --arg id "$id" '.scenarios[] | select(.scenario_id==$id) | .expected_verdict' \
+                   tests/mock_data/generated/expected_outcomes.json)
+            got=$(curl -fsS -X POST http://127.0.0.1:8000/v1/audits \
+                   -H 'content-type: application/json' -d @"$f" | jq -r .verdict)
+            echo "$id: want=$want got=$got"
+            [ "$want" = "$got" ]
+          done
+
+      - name: App role cannot write
+        run: |
+          source .env
+          if docker compose exec -T -e PGPASSWORD="$AUDITOR_DB_RO_PASSWORD" postgres \
+               psql -h 127.0.0.1 -U auditor_ro -d erp -c "BEGIN READ WRITE; DELETE FROM historical_payments;"; then
+            echo "::error::auditor_ro was able to write"; exit 1
+          fi
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

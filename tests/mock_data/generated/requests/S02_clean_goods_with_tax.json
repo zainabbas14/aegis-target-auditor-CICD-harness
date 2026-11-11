@@ -1,0 +1,29 @@
+{
+  "invoice_number": "MIS-55810",
+  "vendor_name": "Meridian Industrial Supply Inc.",
+  "vendor_tax_id": "MIS-TX-0938815",
+  "po_number": "PO-2026-0422",
+  "invoice_date": "2026-10-06",
+  "due_date": "2026-11-20",
+  "remit_account": "FAKE-US00-MERI-0000-1002",
+  "line_items": [
+    {
+      "item_code": "PALLET_RACK",
+      "description": "Selective pallet rack bay",
+      "quantity": "20",
+      "unit_price": "340.00",
+      "amount": "6800.00"
+    },
+    {
+      "item_code": "SAFETY_KIT",
+      "description": "PPE safety kit (Class 2)",
+      "quantity": "30",
+      "unit_price": "82.50",
+      "amount": "2475.00"
+    }
+  ],
+  "subtotal": "9275.00",
+  "tax": "463.75",
+  "total": "9738.75",
+  "currency": "USD"
+}

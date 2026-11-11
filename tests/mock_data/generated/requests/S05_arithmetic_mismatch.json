@@ -1,0 +1,29 @@
+{
+  "invoice_number": "MIS-55902",
+  "vendor_name": "Meridian Industrial Supply Inc.",
+  "vendor_tax_id": "MIS-TX-0938815",
+  "po_number": "PO-2026-0422",
+  "invoice_date": "2026-10-21",
+  "due_date": "2026-12-05",
+  "remit_account": "FAKE-US00-MERI-0000-1002",
+  "line_items": [
+    {
+      "item_code": "SAFETY_KIT",
+      "description": "PPE safety kit (Class 2)",
+      "quantity": "40",
+      "unit_price": "85.00",
+      "amount": "3400.00"
+    },
+    {
+      "item_code": "FORKLIFT_SVC",
+      "description": "Forklift preventive service",
+      "quantity": "2",
+      "unit_price": "650.00",
+      "amount": "1300.00"
+    }
+  ],
+  "subtotal": "4970.00",
+  "tax": "248.50",
+  "total": "5218.50",
+  "currency": "USD"
+}

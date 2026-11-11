@@ -1,0 +1,22 @@
+{
+  "invoice_number": "KFC-9981",
+  "vendor_name": "Kestrel Freight Co.",
+  "vendor_tax_id": "KFC-TX-5520467",
+  "po_number": "PO-2026-0431",
+  "invoice_date": "2026-10-20",
+  "due_date": "2026-11-19",
+  "remit_account": "FAKE-PK00-KEST-0000-1003",
+  "line_items": [
+    {
+      "item_code": "FTL_LANE",
+      "description": "Full truckload, KHI-LHE lane",
+      "quantity": "4",
+      "unit_price": "2200.00",
+      "amount": "8800.00"
+    }
+  ],
+  "subtotal": "8800.00",
+  "tax": "0.00",
+  "total": "8800.00",
+  "currency": "USD"
+}

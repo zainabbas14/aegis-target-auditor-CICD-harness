@@ -7,6 +7,8 @@ Outputs:
     generated/contracts/<contract_ref>.pdf
     generated/enterprise_erp.db
     generated/expected_outcomes.json   <- golden set for evals and e2e tests
+    generated/requests/<scenario_id>.json   <- API request bodies (parser's-eye view)
+    generated/postgres/002_seed.sql    <- same ledger, as a Postgres init script
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from tests.mock_data.fixtures import CONTRACTS, SCENARIOS, Scenario, vendor_by_id
+from tests.mock_data.pg_seed import export_postgres_seed
 from tests.mock_data.render_contracts import render_contract
 from tests.mock_data.render_invoices import render_invoice
 from tests.mock_data.seed_db import DEFAULT_SEED, seed
@@ -68,6 +71,26 @@ def _golden(s: Scenario) -> dict[str, Any]:
     }
 
 
+def parser_view(golden: dict[str, Any]) -> dict[str, Any]:
+    """What a perfect Document Parser would emit: the printed values only.
+    Item codes are dropped for layouts that don't print them."""
+    extraction = dict(golden["expected_extraction"])
+    if not golden["item_codes_printed"]:
+        extraction["line_items"] = [{**ln, "item_code": None} for ln in extraction["line_items"]]
+    return extraction
+
+
+def _write_json(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, default=_json_default) + "\n", encoding="utf-8")
+
+
+def _json_default(o: object) -> str:
+    if isinstance(o, Decimal):
+        return str(o)
+    raise TypeError(f"not JSON serialisable: {type(o).__name__}")
+
+
 def build(out_dir: Path = DEFAULT_OUT, seed_value: int = DEFAULT_SEED) -> None:
     contracts_dir = out_dir / "contracts"
     for c in CONTRACTS:
@@ -75,12 +98,12 @@ def build(out_dir: Path = DEFAULT_OUT, seed_value: int = DEFAULT_SEED) -> None:
     for s in SCENARIOS:
         render_invoice(s.invoice, out_dir / "invoices" / f"{s.scenario_id}.pdf")
     seed(out_dir / "enterprise_erp.db", Path("contracts"), seed_value)
+    export_postgres_seed(out_dir / "enterprise_erp.db", out_dir / "postgres" / "002_seed.sql")
 
-    golden = {"schema_version": 1, "seed": seed_value, "scenarios": [_golden(s) for s in SCENARIOS]}
-    (out_dir / "expected_outcomes.json").write_text(
-        json.dumps(golden, indent=2, default=lambda o: str(o) if isinstance(o, Decimal) else o) + "\n",
-        encoding="utf-8",
-    )
+    scenarios = [_golden(s) for s in SCENARIOS]
+    _write_json(out_dir / "expected_outcomes.json", {"schema_version": 1, "seed": seed_value, "scenarios": scenarios})
+    for g in scenarios:
+        _write_json(out_dir / "requests" / f"{g['scenario_id']}.json", parser_view(g))
     logger.info("Built %d contracts, %d invoices into %s", len(CONTRACTS), len(SCENARIOS), out_dir)
 
 

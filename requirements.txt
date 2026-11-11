@@ -1,0 +1,7 @@
+# Runtime pins (what the Docker image installs). Ranges live in pyproject.toml.
+pydantic==2.14.3
+pydantic-settings==2.16.2
+fastapi==0.162.4
+uvicorn==0.54.0
+psycopg[binary]==3.3.8
+psycopg-pool==3.3.3
