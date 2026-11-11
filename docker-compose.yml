@@ -10,12 +10,14 @@ services:
       POSTGRES_DB: erp
       POSTGRES_USER: erp_admin
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      # Consumed by 003_readonly_role.sh on first init only.
+      # Consumed by the role scripts on first init only.
       AUDITOR_DB_RO_PASSWORD: ${AUDITOR_DB_RO_PASSWORD:?set AUDITOR_DB_RO_PASSWORD in .env}
+      AUDITOR_STATE_DB_PASSWORD: ${AUDITOR_STATE_DB_PASSWORD:?set AUDITOR_STATE_DB_PASSWORD in .env}
     volumes:
       - ./db/postgres/001_schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
       - ./tests/mock_data/generated/postgres/002_seed.sql:/docker-entrypoint-initdb.d/002_seed.sql:ro
       - ./db/postgres/003_readonly_role.sh:/docker-entrypoint-initdb.d/003_readonly_role.sh:ro
+      - ./db/postgres/004_state_role.sh:/docker-entrypoint-initdb.d/004_state_role.sh:ro
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       # -h 127.0.0.1 matters: during init scripts the server listens on the
@@ -32,14 +34,22 @@ services:
     environment:
       AUDITOR_ENV: ${AUDITOR_ENV:-dev}
       AUDITOR_LEDGER_BACKEND: postgres
-      # The API only ever receives the read-only role's credentials.
+      # Two least-privilege roles; the admin password never reaches this container.
       AUDITOR_DATABASE_URL: postgresql://auditor_ro:${AUDITOR_DB_RO_PASSWORD}@postgres:5432/erp
+      AUDITOR_CHECKPOINTER: postgres
+      AUDITOR_STATE_DATABASE_URL: postgresql://auditor_state:${AUDITOR_STATE_DB_PASSWORD}@postgres:5432/erp
       AUDITOR_LOG_LEVEL: ${AUDITOR_LOG_LEVEL:-INFO}
+      # Optional. Without it, parsing degrades to human data entry and explanations to templates.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AUDITOR_LLM_PARSER_MODEL: ${AUDITOR_LLM_PARSER_MODEL:-claude-sonnet-5-5}
+      AUDITOR_LLM_EXPLAINER_MODEL: ${AUDITOR_LLM_EXPLAINER_MODEL:-claude-haiku-5-5}
     depends_on:
       postgres:
         condition: service_healthy
     ports:
       - "127.0.0.1:8000:8000"
+    volumes:
+      - documents:/var/lib/auditor/documents
     read_only: true
     tmpfs: [/tmp]
     security_opt: ["no-new-privileges:true"]
@@ -47,3 +57,4 @@ services:
 
 volumes:
   pgdata:
+  documents:

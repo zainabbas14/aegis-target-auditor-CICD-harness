@@ -12,8 +12,10 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    AUDITOR_LOG_FORMAT=json
-RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin app
+    AUDITOR_LOG_FORMAT=json \
+    AUDITOR_DOCUMENTS_DIR=/var/lib/auditor/documents
+RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin app \
+    && install -d -o app -g app -m 0750 /var/lib/auditor/documents
 COPY --from=build /wheels /wheels
 # --no-index: only the pinned wheels built above can be installed.
 RUN pip install --no-index --find-links=/wheels multi-agent-finance-auditor && rm -rf /wheels

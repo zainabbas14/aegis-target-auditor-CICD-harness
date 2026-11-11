@@ -4,13 +4,13 @@
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![Typed](https://img.shields.io/badge/mypy-strict-informational)
 
-An accounts-payable auditor that checks every supplier invoice against the **contract** it was billed under and the
-**payment history** in the ERP, and stops anomalous payments before money moves. Clean invoices are routed to a human
-for approval; nothing is ever paid autonomously.
+An accounts-payable auditor: upload a supplier invoice PDF, and a LangGraph agent workflow reads it with Claude,
+checks it against the **contract** it was billed under and the **payment history** in the ERP, explains what it
+found, and stops anomalous payments before money moves. Clean invoices pause for a human to approve; nothing is
+ever paid autonomously.
 
-> **Status:** the deterministic audit core, read-only ledger, HTTP API and Docker stack are complete (M0–M2).
-> The LangGraph agent layer (document parsing, contract reading, HITL approval) is the next milestone - see
-> [Roadmap](#roadmap). This README describes what exists, not what is planned.
+> **Status:** M0–M3 complete - deterministic audit core, read-only ledger, HTTP API, Docker stack, and the
+> LangGraph agent workflow with HITL approval and deterministic fallbacks. See [Roadmap](#roadmap).
 
 ---
 
@@ -39,56 +39,71 @@ cannot verify something, it says so instead of approving.
 ## Architecture
 
 ```mermaid
-flowchart LR
-    subgraph Client
-        U[AP analyst / upstream system]
+flowchart TD
+    U([AP clerk / approver]) -->|"POST /v1/runs (PDF)"| P
+
+    subgraph G["LangGraph workflow (Postgres-checkpointed)"]
+        P["parse<br/><i>Claude reads the PDF</i><br/>→ normalise → ground against text layer"]
+        M{{"⏸ await_manual_entry<br/>human keys the invoice in"}}
+        A["audit<br/><i>deterministic rules, read-only ledger</i>"]
+        E["explain<br/><i>Claude narrates findings</i><br/>(template fallback)"]
+        F[finalize]
+        H{{"⏸ await_approval<br/>human approves / rejects"}}
+        X["execute_payment<br/>re-audit on fresh facts → idempotent simulated wire"]
+        P -->|grounded| A
+        P -.->|"LLM down / ungrounded"| M --> A
+        A --> E
+        E -->|"BLOCK / REVIEW"| F
+        E -->|clean| H
+        H -->|approve| X
     end
 
-    subgraph API["auditor API (FastAPI, non-root container)"]
-        MW[Request-ID + JSON logging middleware]
-        EP["POST /v1/audits"]
-        subgraph Core["Deterministic core (pure, no I/O)"]
-            GF["gather_facts()"]
-            EV["evaluate() - 6 checks"]
-            VD["verdict_for() - worst severity wins"]
-        end
-    end
+    F --> R1([BLOCKED · NEEDS_REVIEW])
+    H -->|reject| R2([REJECTED])
+    X --> R3([PAID · BLOCKED_AT_PAYMENT])
 
-    subgraph Data["Postgres 17"]
-        RO[(auditor_ro role<br/>SELECT-only, read-only txns)]
-        T[(vendors · contracts · contract_rates<br/>purchase_orders · historical_payments<br/>po_balances view)]
+    subgraph DB["Postgres"]
+        L[("public: ledger<br/>role auditor_ro - SELECT only")]
+        S[("agent_state: checkpoints<br/>role auditor_state - no ledger access")]
     end
-
-    U -->|ExtractedInvoice JSON| MW --> EP --> GF
-    GF -->|LedgerReader port| RO --> T
-    GF -->|LedgerFacts| EV --> VD
-    VD -->|AuditResult: verdict + findings + evidence| U
-
-    subgraph M3["M3 - planned"]
-        P[Document Parser agent<br/>PDF → ExtractedInvoice]
-        C[Contract agent<br/>clause & rate extraction]
-        H{{HITL breakpoint<br/>approve payment?}}
-    end
-    P -.-> EP
-    VD -.->|APPROVE_PENDING_HUMAN| H
+    A -.-> L
+    X -.-> L
+    G -.-> S
 ```
 
 **Design decisions**
 
-- **Rules own the verdict; LLMs will explain and assist.** An auditable decision must be reproducible from logged
-  inputs. `evaluate()` is a pure function: same `ExtractedInvoice` + `LedgerFacts` → same verdict, every time. In M3,
-  LLM agents produce those inputs and write the human-readable rationale; they never decide whether money moves.
-- **Fail closed.** "Couldn't check" never looks like "checked and clean". A vendor with no contract is blocked, not
-  waved through without a price check. Ambiguous line items are escalated, never guessed.
-- **Shape validation ≠ semantic validation.** Pydantic rejects malformed data (negative money, sub-cent precision,
-  NaN). It deliberately *accepts* an invoice whose subtotal contradicts its lines - otherwise the fraud the system
-  exists to detect would surface as a 422 instead of a finding.
-- **Read-only by construction, three layers deep.** The ledger port has no write methods; the app connects as a
-  SELECT-only role; that role and the connection pool both force read-only transactions. CI verifies the role
-  cannot write.
+- **Rules own the verdict; LLMs read and explain.** An auditable decision must be reproducible from logged inputs.
+  `evaluate()` is a pure function: same `ExtractedInvoice` + `LedgerFacts` → same verdict, every time. Claude
+  transcribes documents and narrates findings; it never decides whether money moves.
+- **The LLM reads, code interprets, the document is the ground truth.** The parser asks Claude for a flat,
+  string-typed transcription (structured outputs); deterministic code normalises it, validates its shape, and
+  checks that every identifier and amount actually appears in the PDF's own text layer. A value the model
+  "read" that isn't on the page sends the invoice to a human instead of into the audit. The prompt forbids
+  correcting inconsistent figures - and if the model does "fix" the arithmetic anyway, the fix isn't on the page,
+  so grounding rejects it. Fraud can be routed to a human; it can't be silently erased.
+- **Degrade, don't crash.** No API key, a timeout, a refusal, a schema violation: parsing falls back to
+  human data entry, explanations to a deterministic template. The run records every degradation. With no LLM at
+  all the system still works end to end - CI proves it on every push.
+- **Prompt injection has nowhere to go.** Invoice text reaches only the parser, whose output is grounded and then
+  judged by rules. The explainer sees only the engine's structured findings, never document text, and cannot
+  change the verdict.
+- **Human in the loop, done properly.** LangGraph `interrupt()` pauses clean invoices for approval; the Postgres
+  checkpointer means a pending approval survives restarts and deploys. Four-eyes rule: whoever keyed an invoice
+  in by hand cannot approve it.
+- **Time-of-check ≠ time-of-use.** Approval can come days after the audit, so payment re-audits against fresh
+  ledger facts first. A duplicate paid in the meantime is caught (`BLOCKED_AT_PAYMENT`).
+- **Money moves at most once, to the right place.** Payment is idempotent on the run id (LangGraph may re-run
+  a node after a crash) and goes to the account on the vendor master record, never the one printed on the invoice.
+- **Fail closed.** "Couldn't check" never looks like "checked and clean": unknown vendors, missing contracts and
+  ambiguous line items block or escalate.
+- **Shape validation ≠ semantic validation.** Pydantic rejects malformed data but deliberately *accepts* an
+  invoice whose subtotal contradicts its lines - otherwise fraud would surface as a 422 instead of a finding.
+- **Least privilege, both ways.** The ledger role can't write; the checkpoint role can't read the ledger. The admin
+  password never reaches the API container, which runs non-root on a read-only filesystem.
+- **Plain-JSON state.** Checkpoints hold only JSON - models are re-validated on read, and derived fields such as
+  a finding's severity are recomputed rather than trusted, so a tampered checkpoint can't relabel a BLOCK.
 - **Money is never a float.** `Decimal` in Python, integer cents in the database.
-- **Ports & adapters.** The core depends on a `LedgerReader` protocol. SQLite and Postgres adapters both implement
-  it, and every ledger-backed test runs against both to prove parity.
 
 ---
 
@@ -99,39 +114,50 @@ Requires Docker with Compose v2.
 ```bash
 git clone https://github.com/zainabbas14/multi-agent-finance-auditor.git
 cd multi-agent-finance-auditor
-cp .env.example .env            # then set POSTGRES_PASSWORD and AUDITOR_DB_RO_PASSWORD
+cp .env.example .env     # set the three passwords; optionally ANTHROPIC_API_KEY
 docker compose up --build
 ```
 
-- Interactive API docs: <http://localhost:8000/docs>
-- Readiness: <http://localhost:8000/readyz>
+Interactive API docs: <http://localhost:8000/docs>
 
-Audit the arithmetic-mismatch scenario:
+### The agent workflow
 
 ```bash
-curl -s -X POST http://localhost:8000/v1/audits \
-  -H 'content-type: application/json' \
+G=tests/mock_data/generated
+
+# 1. Upload an invoice PDF
+RUN=$(curl -s -F "file=@$G/invoices/S01_clean_services.pdf;type=application/pdf" localhost:8000/v1/runs)
+ID=$(echo "$RUN" | jq -r .run_id); echo "$RUN" | jq '{status, verdict, narrative, degradations}'
+```
+
+- **With `ANTHROPIC_API_KEY` set:** Claude parses the PDF; the clean invoice stops at `AWAITING_APPROVAL`.
+- **Without a key:** the run degrades to `NEEDS_MANUAL_ENTRY`. Key the invoice in (here, from the fixture):
+
+  ```bash
+  jq '{entered_by: "clerk.bea", invoice: .}' $G/requests/S01_clean_services.json \
+    | curl -s -X POST localhost:8000/v1/runs/$ID/extraction -H 'content-type: application/json' -d @- | jq .status
+  ```
+
+```bash
+# 2. Approve (a different person from whoever keyed it in)
+curl -s -X POST localhost:8000/v1/runs/$ID/decision -H 'content-type: application/json' \
+  -d '{"approved": true, "approver": "ap.manager"}' | jq '{status, payment}'
+```
+
+Upload `S03_rate_overcharge.pdf` or `S07_remit_to_changed.pdf` instead and the run stops at `BLOCKED` with
+quantified findings - there is no approval path for it.
+
+### The deterministic endpoint
+
+`POST /v1/audits` takes an already-extracted invoice (JSON) and returns the rule engine's verdict directly, with no
+LLM involved:
+
+```bash
+curl -s -X POST localhost:8000/v1/audits -H 'content-type: application/json' \
   -d @tests/mock_data/generated/requests/S05_arithmetic_mismatch.json | jq
 ```
 
-```json
-{
-  "invoice_number": "MIS-55902",
-  "verdict": "BLOCK",
-  "findings": [
-    {
-      "code": "ARITHMETIC_MISMATCH",
-      "message": "Line items sum to 4,700.00 but stated subtotal is 4,970.00 (difference 270.00).",
-      "evidence": { "line_sum": "4700.00", "stated_subtotal": "4970.00" },
-      "severity": "BLOCK"
-    }
-  ],
-  "rules_version": "2026.11-m1"
-}
-```
-
-All eight scenario request bodies are in `tests/mock_data/generated/requests/`. Reset the database with
-`docker compose down -v`.
+Reset all state with `docker compose down -v`.
 
 ---
 
@@ -141,11 +167,14 @@ All eight scenario request bodies are in `tests/mock_data/generated/requests/`. 
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt && pip install -e . --no-deps
 
-ruff check . && ruff format --check . && mypy && pytest     # the CI gate, locally
+ruff check . && ruff format --check . && mypy && pytest     # the CI gate, locally (no LLM calls)
 
 # Include the Postgres half of the suite (any superuser DSN; tests create and drop their own database):
 docker compose up -d postgres
 AUDITOR_TEST_DATABASE_URL=postgresql://erp_admin:<POSTGRES_PASSWORD>@localhost:5432/postgres pytest
+
+# Live extraction eval against the real Claude API (costs tokens; never runs in CI):
+ANTHROPIC_API_KEY=sk-ant-... pytest -m live -s
 
 # Run the API against the local SQLite ledger:
 uvicorn auditor.api.app:create_app --factory --reload
@@ -181,14 +210,20 @@ stale.
 src/auditor/
   domain/          enums (findings, severities, verdicts) and Pydantic models
   rules/engine.py  gather_facts() [I/O] + evaluate() [pure]
+  agents/          Document Parser (Claude + grounding) and Explainer (Claude + template fallback)
+  workflow/        LangGraph state machine, run service, checkpointer wiring
+  llm/             StructuredLLM port + Anthropic adapter (structured outputs)
+  documents/       content-addressed PDF store, text-layer extraction
+  payments.py      idempotent simulated payment gateway
   ports.py         LedgerReader protocol (read-only)
-  adapters/        SQLite and Postgres implementations, factory
+  adapters/        SQLite and Postgres ledger implementations, factory
   api/app.py       FastAPI app factory, middleware, routes
   config.py        pydantic-settings
   logging_setup.py structured JSON logging with request IDs
-db/postgres/       schema and read-only role (docker-entrypoint-initdb.d)
-tests/             unit, golden end-to-end (both backends), API, mock-data integrity
+db/postgres/       schema, read-only ledger role, checkpoint role (docker-entrypoint-initdb.d)
+tests/             unit, golden end-to-end (both backends), workflow (scripted fake LLM), API, live eval
 .github/workflows/ lint → types → tests (SQLite + Postgres) → fixture freshness → docker compose smoke test
+                   (golden scenarios over HTTP, degraded agent path, restart-surviving approval, four-eyes)
 ```
 
 ---
@@ -198,8 +233,9 @@ tests/             unit, golden end-to-end (both backends), API, mock-data integ
 - [x] **M0** Deterministic multi-modal test data with golden outcomes
 - [x] **M1** Domain model, pure rule engine, read-only ledger, CI
 - [x] **M2** Settings, structured logging, FastAPI, Postgres, Docker Compose
-- [ ] **M3** LangGraph agents: Document Parser (PDF → `ExtractedInvoice`), Contract agent, LLM explainer;
-      deterministic fallback on tool failure; HITL interrupt with a Postgres checkpointer
-- [ ] **M4** Evaluation harness: per-field extraction accuracy and verdict accuracy on the golden set, plus real
-      CUAD contracts for clause extraction
-- [ ] **M5** Simulated payment execution behind the approval gate, idempotency keys, append-only audit log
+- [x] **M3** LangGraph workflow: Claude document parser with grounding, explainer, HITL approval with Postgres
+      checkpoints, manual-entry fallback, four-eyes, pre-payment re-audit, idempotent simulated payment
+- [ ] **M4** Contract agent (Claude reads contract PDFs → rate card, cross-checked against the ERP mirror),
+      LLM-proposed line-item mappings for human confirmation, evaluation harness with real CUAD contracts
+- [ ] **M5** Authentication and roles for approvers, append-only audit log, async job queue for uploads,
+      durable payment outbox

@@ -1,8 +1,12 @@
 """HTTP boundary.
 
-    POST /v1/audits   ExtractedInvoice -> AuditResult   (deterministic path)
-    GET  /healthz     liveness: the process is up
-    GET  /readyz      readiness: the ledger is reachable
+    POST /v1/runs                      upload an invoice PDF -> agent workflow run
+    GET  /v1/runs/{run_id}             run state (status, verdict, findings, narrative, ...)
+    POST /v1/runs/{run_id}/extraction  human data entry when automated parsing failed (resumes the run)
+    POST /v1/runs/{run_id}/decision    human approval / rejection (resumes the HITL breakpoint)
+    POST /v1/audits                    ExtractedInvoice -> AuditResult (deterministic path, no LLM)
+    GET  /healthz                      liveness: the process is up
+    GET  /readyz                       readiness: the ledger is reachable
 
 Run:  uvicorn auditor.api.app:create_app --factory
 """
@@ -14,23 +18,41 @@ import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Path, Request, Response, UploadFile, status
 from fastapi.responses import JSONResponse
+from langgraph.checkpoint.base import BaseCheckpointSaver
 
 from auditor import __version__
 from auditor.adapters.factory import build_ledger
+from auditor.agents.explainer import Explainer
+from auditor.agents.parser import DocumentParser
 from auditor.config import Settings, get_settings
+from auditor.documents.store import PDF_MAGIC, DocumentStore
 from auditor.domain.models import AuditResult, ExtractedInvoice
+from auditor.llm.ports import StructuredLLM
 from auditor.logging_setup import request_id_var, setup_logging
+from auditor.payments import PaymentGateway, SimulatedPaymentGateway
 from auditor.ports import LedgerReader
 from auditor.rules.engine import RuleConfig, audit
+from auditor.workflow.factory import build_checkpointer, build_llm
+from auditor.workflow.graph import ApprovalDecision, ManualEntry, WorkflowDeps, build_graph
+from auditor.workflow.service import (
+    RunNotAwaitingApprovalError,
+    RunNotAwaitingEntryError,
+    RunNotFoundError,
+    RunService,
+    RunView,
+    SegregationOfDutiesError,
+)
 
 logger = logging.getLogger(__name__)
 
 REQUEST_ID_HEADER = "X-Request-ID"
 _MAX_REQUEST_ID_LEN = 128
+RunId = Annotated[str, Path(pattern=r"^[0-9a-f]{32}$")]
+_UNSET: Any = object()
 
 
 def _get_ledger(request: Request) -> LedgerReader:
@@ -43,22 +65,64 @@ def _get_rule_config(request: Request) -> RuleConfig:
     return cfg
 
 
-def create_app(settings: Settings | None = None, ledger: LedgerReader | None = None) -> FastAPI:
-    """App factory. Tests inject ``ledger``; production builds it from settings."""
+def _get_runs(request: Request) -> RunService:
+    runs: RunService = request.app.state.runs
+    return runs
+
+
+def create_app(  # noqa: PLR0915 - composition root + route table; splitting it hides the wiring
+    settings: Settings | None = None,
+    *,
+    ledger: LedgerReader | None = None,
+    llm: StructuredLLM | None = _UNSET,
+    checkpointer: BaseCheckpointSaver[Any] | None = None,
+    payments: PaymentGateway | None = None,
+) -> FastAPI:
+    """App factory. Production builds every dependency from settings; tests inject
+    fakes (``llm=None`` explicitly simulates "no LLM configured")."""
     settings = settings or get_settings()
     setup_logging(settings.log_level, settings.log_format)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        owned = ledger is None
-        app.state.ledger = ledger or build_ledger(settings)
-        app.state.rule_config = RuleConfig(near_duplicate_window_days=settings.near_duplicate_window_days)
-        logger.info("Auditor API started", extra={"env": settings.env, "ledger_backend": settings.ledger_backend})
+        closers = []
+        led = ledger or build_ledger(settings)
+        if ledger is None:
+            closers.append(led.close)
+        if checkpointer is None:
+            saver, close_saver = build_checkpointer(settings)
+            closers.append(close_saver)
+        else:
+            saver = checkpointer
+        parser_llm = build_llm(settings, settings.llm_parser_model) if llm is _UNSET else llm
+        explainer_llm = build_llm(settings, settings.llm_explainer_model) if llm is _UNSET else llm
+        rule_config = RuleConfig(near_duplicate_window_days=settings.near_duplicate_window_days)
+        documents = DocumentStore(settings.documents_dir)
+        deps = WorkflowDeps(
+            ledger=led,
+            documents=documents,
+            parser=DocumentParser(parser_llm),
+            explainer=Explainer(explainer_llm),
+            payments=payments or SimulatedPaymentGateway(),
+            rule_config=rule_config,
+        )
+        app.state.ledger = led
+        app.state.rule_config = rule_config
+        app.state.runs = RunService(build_graph(deps, saver), documents)
+        logger.info(
+            "Auditor API started",
+            extra={
+                "env": settings.env,
+                "ledger_backend": settings.ledger_backend,
+                "checkpointer": settings.checkpointer,
+                "llm_configured": parser_llm is not None,
+            },
+        )
         try:
             yield
         finally:
-            if owned:
-                app.state.ledger.close()
+            for close in reversed(closers):
+                close()
 
     app = FastAPI(
         title="Multi-Agent Finance Auditor",
@@ -112,5 +176,68 @@ def create_app(settings: Settings | None = None, ledger: LedgerReader | None = N
     ) -> AuditResult:
         # Sync def: FastAPI runs it in a worker thread, so blocking DB I/O is fine.
         return audit(invoice, led, cfg)
+
+    @app.post(
+        "/v1/runs",
+        response_model=RunView,
+        status_code=status.HTTP_201_CREATED,
+        tags=["agent workflow"],
+        responses={413: {"description": "file too large"}, 415: {"description": "not a PDF"}},
+    )
+    def create_run(file: UploadFile, runs: Annotated[RunService, Depends(_get_runs)]) -> RunView:
+        """Upload an invoice PDF. Runs parse -> audit -> explain synchronously and returns the run;
+        a clean invoice stops at AWAITING_APPROVAL."""
+        data = file.file.read(settings.max_upload_bytes + 1)
+        if len(data) > settings.max_upload_bytes:
+            raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "file too large")
+        if not data.startswith(PDF_MAGIC):
+            raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "only PDF invoices are accepted")
+        return runs.start(data, (file.filename or "invoice.pdf")[:255])
+
+    @app.get("/v1/runs/{run_id}", response_model=RunView, tags=["agent workflow"])
+    def get_run(run_id: RunId, runs: Annotated[RunService, Depends(_get_runs)]) -> RunView:
+        try:
+            return runs.get(run_id)
+        except RunNotFoundError:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "run not found") from None
+
+    @app.post(
+        "/v1/runs/{run_id}/extraction",
+        response_model=RunView,
+        tags=["agent workflow"],
+        responses={409: {"description": "run is not awaiting manual entry"}},
+    )
+    def submit_extraction(
+        run_id: RunId, entry: ManualEntry, runs: Annotated[RunService, Depends(_get_runs)]
+    ) -> RunView:
+        """Human data entry for a run in NEEDS_MANUAL_ENTRY. The run then continues through the audit."""
+        try:
+            return runs.submit_extraction(run_id, entry)
+        except RunNotFoundError:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "run not found") from None
+        except RunNotAwaitingEntryError as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, f"run is not awaiting manual entry (status: {exc})") from None
+
+    @app.post(
+        "/v1/runs/{run_id}/decision",
+        response_model=RunView,
+        tags=["agent workflow"],
+        responses={
+            403: {"description": "approver keyed this invoice in (four-eyes rule)"},
+            409: {"description": "run is not awaiting approval"},
+        },
+    )
+    def decide_run(
+        run_id: RunId, decision: ApprovalDecision, runs: Annotated[RunService, Depends(_get_runs)]
+    ) -> RunView:
+        """Human-in-the-loop: approve (pay) or reject a run paused at AWAITING_APPROVAL."""
+        try:
+            return runs.decide(run_id, decision)
+        except RunNotFoundError:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "run not found") from None
+        except RunNotAwaitingApprovalError as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, f"run is not awaiting approval (status: {exc})") from None
+        except SegregationOfDutiesError as exc:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from None
 
     return app

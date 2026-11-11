@@ -76,3 +76,16 @@ def verdict_for(codes: frozenset[FindingCode] | set[FindingCode]) -> Verdict:
     if Severity.REVIEW in severities:
         return Verdict.REVIEW
     return Verdict.APPROVE_PENDING_HUMAN
+
+
+class RunStatus(StrEnum):
+    """Lifecycle of one document through the agent workflow."""
+
+    PROCESSING = "PROCESSING"
+    NEEDS_MANUAL_ENTRY = "NEEDS_MANUAL_ENTRY"  # parser could not produce a trustworthy extraction
+    BLOCKED = "BLOCKED"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
+    AWAITING_APPROVAL = "AWAITING_APPROVAL"  # HITL breakpoint
+    REJECTED = "REJECTED"
+    BLOCKED_AT_PAYMENT = "BLOCKED_AT_PAYMENT"  # clean at audit time, not clean at payment time
+    PAID = "PAID"

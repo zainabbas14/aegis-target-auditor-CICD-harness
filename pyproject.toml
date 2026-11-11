@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "multi-agent-finance-auditor"
-version = "0.3.0"
+version = "0.4.0"
 description = "Multi-agent AP auditor: invoices vs contracts vs payment history, with HITL approval"
 requires-python = ">=3.12"
 dependencies = [
@@ -14,6 +14,11 @@ dependencies = [
     "uvicorn>=0.30,<1",
     "psycopg[binary]>=3.2,<4",
     "psycopg-pool>=3.2,<4",
+    "python-multipart>=0.0.20",
+    "anthropic>=2.8,<3",
+    "langgraph>=1.2,<2",
+    "langgraph-checkpoint-postgres>=3.2,<4",
+    "pdfplumber>=0.11,<1",
 ]
 
 [tool.setuptools.packages.find]
@@ -25,8 +30,11 @@ auditor = ["py.typed"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
-addopts = "-ra --strict-markers --strict-config"
-markers = ["postgres: needs AUDITOR_TEST_DATABASE_URL (a superuser DSN); skipped otherwise"]
+addopts = "-ra --strict-markers --strict-config -m 'not live'"
+markers = [
+    "postgres: needs AUDITOR_TEST_DATABASE_URL (a superuser DSN); skipped otherwise",
+    "live: calls the real Anthropic API (costs tokens); run with `pytest -m live -s`",
+]
 log_level = "INFO"
 
 [tool.ruff]

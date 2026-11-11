@@ -3,8 +3,6 @@
 # that committed fixtures match a fresh build.
 reportlab==5.1.0
 faker==40.52.0
-pdfplumber==0.11.10
 pytest==9.2.0
-httpx2==2.16.0
 ruff==0.17.4
 mypy==2.4.1

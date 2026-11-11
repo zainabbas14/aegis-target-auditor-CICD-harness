@@ -14,9 +14,9 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, computed_field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, computed_field, model_validator
 
 from auditor.domain.enums import SEVERITY, FindingCode, PaymentStatus, Severity, Verdict
 
@@ -43,6 +43,16 @@ def money_to_cents(value: Decimal) -> int:
 
 class Model(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_computed(cls, data: Any) -> Any:
+        """Round-trip safety: a dumped model contains its computed fields (e.g. severity).
+        On re-validation they are discarded and recomputed - derived values are never
+        trusted from input, so a tampered checkpoint can't relabel a BLOCK as REVIEW."""
+        if isinstance(data, dict) and cls.model_computed_fields:
+            return {k: v for k, v in data.items() if k not in cls.model_computed_fields}
+        return data
 
 
 # --------------------------------------------------------------------------- #

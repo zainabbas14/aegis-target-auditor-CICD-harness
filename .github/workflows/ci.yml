@@ -72,6 +72,7 @@ jobs:
           cp .env.example .env
           sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 16)/" .env
           sed -i "s/^AUDITOR_DB_RO_PASSWORD=.*/AUDITOR_DB_RO_PASSWORD=$(openssl rand -hex 16)/" .env
+          sed -i "s/^AUDITOR_STATE_DB_PASSWORD=.*/AUDITOR_STATE_DB_PASSWORD=$(openssl rand -hex 16)/" .env
 
       - name: Start stack
         run: docker compose up -d --build --wait --wait-timeout 180
@@ -90,6 +91,31 @@ jobs:
             echo "$id: want=$want got=$got"
             [ "$want" = "$got" ]
           done
+
+      - name: Agent workflow over HTTP (no LLM key -> degraded path -> manual entry -> HITL -> paid)
+        run: |
+          G=tests/mock_data/generated
+          run=$(curl -fsS -F "file=@$G/invoices/S01_clean_services.pdf;type=application/pdf" http://127.0.0.1:8000/v1/runs)
+          echo "$run" | jq .
+          [ "$(echo "$run" | jq -r .status)" = "NEEDS_MANUAL_ENTRY" ]
+          id=$(echo "$run" | jq -r .run_id)
+
+          jq '{entered_by: "clerk.bea", invoice: .}' "$G/requests/S01_clean_services.json" > entry.json
+          [ "$(curl -fsS -X POST http://127.0.0.1:8000/v1/runs/$id/extraction \
+                -H 'content-type: application/json' -d @entry.json | jq -r .status)" = "AWAITING_APPROVAL" ]
+
+          # Approval must survive an API restart (Postgres checkpointer).
+          docker compose restart api && docker compose up -d --wait api
+          [ "$(curl -fsS http://127.0.0.1:8000/v1/runs/$id | jq -r .status)" = "AWAITING_APPROVAL" ]
+
+          # Four-eyes: the keyer may not approve.
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8000/v1/runs/$id/decision \
+                 -H 'content-type: application/json' -d '{"approved": true, "approver": "clerk.bea"}')
+          [ "$code" = "403" ]
+
+          [ "$(curl -fsS -X POST http://127.0.0.1:8000/v1/runs/$id/decision \
+                -H 'content-type: application/json' -d '{"approved": true, "approver": "ap.manager"}' \
+                | jq -r .status)" = "PAID" ]
 
       - name: App role cannot write
         run: |

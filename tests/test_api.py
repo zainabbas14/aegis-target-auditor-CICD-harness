@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -13,12 +14,12 @@ from auditor.config import Settings
 from auditor.ports import LedgerReader
 from tests.mock_data.fixtures import SCENARIOS
 
-SETTINGS = Settings(env="test", log_format="console", _env_file=None)
+SETTINGS = Settings(env="test", log_format="console", documents_dir=Path(tempfile.mkdtemp()), _env_file=None)
 
 
 @pytest.fixture
 def client(ledger: LedgerReader) -> Iterator[TestClient]:
-    with TestClient(create_app(SETTINGS, ledger=ledger)) as c:
+    with TestClient(create_app(SETTINGS, ledger=ledger, llm=None)) as c:
         yield c
 
 
@@ -74,13 +75,13 @@ class _DownLedger:
 
 
 def test_readyz_503_when_ledger_down() -> None:
-    with TestClient(create_app(SETTINGS, ledger=_DownLedger())) as c:  # type: ignore[arg-type]
+    with TestClient(create_app(SETTINGS, ledger=_DownLedger(), llm=None)) as c:  # type: ignore[arg-type]
         assert c.get("/readyz").status_code == 503
 
 
 def test_internal_errors_do_not_leak(built: Path, caplog: pytest.LogCaptureFixture) -> None:
     body = json.loads((built / "requests" / "S01_clean_services.json").read_text())
-    with TestClient(create_app(SETTINGS, ledger=_DownLedger()), raise_server_exceptions=False) as c:  # type: ignore[arg-type]
+    with TestClient(create_app(SETTINGS, ledger=_DownLedger(), llm=None), raise_server_exceptions=False) as c:  # type: ignore[arg-type]
         resp = c.post("/v1/audits", json=body)
     assert resp.status_code == 500
     assert "db down" not in resp.text
