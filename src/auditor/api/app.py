@@ -5,6 +5,7 @@
     POST /v1/runs/{run_id}/extraction  human data entry when automated parsing failed (resumes the run)
     POST /v1/runs/{run_id}/decision    human approval / rejection (resumes the HITL breakpoint)
     POST /v1/audits                    ExtractedInvoice -> AuditResult (deterministic path, no LLM)
+    POST /v1/contracts/reconcile       contract PDF -> rate card vs ERP mirror (drift report)
     GET  /healthz                      liveness: the process is up
     GET  /readyz                       readiness: the ledger is reachable
 
@@ -26,6 +27,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 
 from auditor import __version__
 from auditor.adapters.factory import build_ledger
+from auditor.agents.contracts import ContractReader, ReconciliationReport, read_and_reconcile
 from auditor.agents.explainer import Explainer
 from auditor.agents.parser import DocumentParser
 from auditor.config import Settings, get_settings
@@ -108,6 +110,7 @@ def create_app(  # noqa: PLR0915 - composition root + route table; splitting it 
         )
         app.state.ledger = led
         app.state.rule_config = rule_config
+        app.state.contract_reader = ContractReader(parser_llm)
         app.state.runs = RunService(build_graph(deps, saver), documents)
         logger.info(
             "Auditor API started",
@@ -176,6 +179,25 @@ def create_app(  # noqa: PLR0915 - composition root + route table; splitting it 
     ) -> AuditResult:
         # Sync def: FastAPI runs it in a worker thread, so blocking DB I/O is fine.
         return audit(invoice, led, cfg)
+
+    @app.post(
+        "/v1/contracts/reconcile",
+        response_model=ReconciliationReport,
+        tags=["contracts"],
+        responses={413: {"description": "file too large"}, 415: {"description": "not a PDF"}},
+    )
+    def reconcile_contract(
+        request: Request, file: UploadFile, led: Annotated[LedgerReader, Depends(_get_ledger)]
+    ) -> ReconciliationReport:
+        """Read a signed contract and report every disagreement between its rate card and the ERP's copy.
+        Returns status UNREADABLE (not an error) if the contract can't be read reliably."""
+        data = file.file.read(settings.max_upload_bytes + 1)
+        if len(data) > settings.max_upload_bytes:
+            raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "file too large")
+        if not data.startswith(PDF_MAGIC):
+            raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "only PDF contracts are accepted")
+        reader: ContractReader = request.app.state.contract_reader
+        return read_and_reconcile(reader, led, data)
 
     @app.post(
         "/v1/runs",

@@ -15,7 +15,7 @@ import pytest
 from auditor.agents.parser import InvoiceExtraction, LineItemExtraction, to_extracted_invoice, ungrounded_fields
 from auditor.domain.models import Finding
 from auditor.llm.anthropic_llm import AnthropicLLM
-from auditor.llm.ports import LLMInvalidOutputError, LLMUnavailableError
+from auditor.llm.ports import LLMInvalidOutputError, LLMUnavailableError, PdfPart, TextPart
 
 
 class _FakeMessages:
@@ -46,7 +46,7 @@ def _call(llm: AnthropicLLM) -> Any:
     return llm.generate(
         output_type=LineItemExtraction,
         system="sys",
-        content=[{"type": "text", "text": "hi"}],
+        content=[TextPart("hi")],
         max_tokens=100,
         purpose="test",
     )
@@ -172,8 +172,8 @@ def test_real_sdk_request_and_parse_path_via_mock_transport() -> None:
 
     client = anthropic.Anthropic(api_key="test", http_client=httpx2.Client(transport=httpx2.MockTransport(handler)))
     llm = AnthropicLLM(api_key="test", model="claude-sonnet-5-5", client=client)
-    pdf_block = {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": "JVBERi0="}}
-    got = llm.generate(output_type=InvoiceExtraction, system="sys", content=[pdf_block], max_tokens=4096, purpose="t")
+    pdf = PdfPart(data=b"%PDF-1.4 test", text_layer="ignored by the Anthropic adapter")
+    got = llm.generate(output_type=InvoiceExtraction, system="sys", content=[pdf], max_tokens=4096, purpose="t")
 
     assert got == expected
     assert seen["output_config"]["format"]["type"] == "json_schema"

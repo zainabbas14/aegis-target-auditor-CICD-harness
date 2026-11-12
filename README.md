@@ -9,8 +9,9 @@ checks it against the **contract** it was billed under and the **payment history
 found, and stops anomalous payments before money moves. Clean invoices pause for a human to approve; nothing is
 ever paid autonomously.
 
-> **Status:** M0–M3 complete - deterministic audit core, read-only ledger, HTTP API, Docker stack, and the
-> LangGraph agent workflow with HITL approval and deterministic fallbacks. See [Roadmap](#roadmap) and
+> **Status:** M0–M4 complete - deterministic audit core, read-only ledger, HTTP API, Docker stack, the
+> LangGraph agent workflow with HITL approval and deterministic fallbacks, a contract-reconciliation agent,
+> provider-agnostic LLM access, and a live evaluation harness. See [Roadmap](#roadmap) and
 > [Known limitations](#known-limitations).
 
 **Try it in two commands** (no API key required):
@@ -31,8 +32,13 @@ cp .env.example .env && docker compose up --build -d --wait
 - **Claude reads, rules decide:** LLM extraction is grounded against the PDF's own text layer before it can
   influence anything
 - **Human approval that survives restarts**, a four-eyes rule, and a pre-payment re-audit
+- **Contracts are audited too:** an agent reads each signed contract and reports every disagreement between
+  its rate card and the ERP's copy - the numbers the auditor trusts are themselves checked
+- **Any LLM, one env var:** Claude directly, or any OpenAI-compatible endpoint (OpenRouter, vLLM, Ollama, ...)
 - **Works with no LLM at all** - every LLM step has a deterministic fallback, exercised in CI on every push
-- **161 tests**, mypy `--strict`, every ledger test run against both SQLite and Postgres
+- **Measured, not claimed:** `python -m evals.run` scores any configured model on the golden set, including
+  the one number that must be zero - documents that were auto-processed *and* got the wrong outcome
+- **205 tests**, mypy `--strict`, every ledger test run against both SQLite and Postgres
 
 ---
 
@@ -169,6 +175,16 @@ curl -s -X POST localhost:8000/v1/runs/$ID/decision -H 'content-type: applicatio
 Upload `S03_rate_overcharge.pdf` or `S07_remit_to_changed.pdf` instead and the run stops at `BLOCKED` with
 quantified findings - there is no approval path for it.
 
+### Contract reconciliation
+
+```bash
+curl -s -F "file=@tests/mock_data/generated/contracts/MSA-HDS-2025-014.pdf;type=application/pdf" \
+  localhost:8000/v1/contracts/reconcile | jq
+```
+
+Returns `CONSISTENT`, `DRIFT` (with every `RATE_MISMATCH`, `MISSING_IN_ERP`, `MISSING_IN_CONTRACT` or
+`SUPPLIER_MISMATCH`), or `UNREADABLE` when the contract couldn't be read reliably - never a guess.
+
 ### The deterministic endpoint
 
 `POST /v1/audits` takes an already-extracted invoice (JSON) and returns the rule engine's verdict directly, with no
@@ -183,19 +199,52 @@ Reset all state with `docker compose down -v`.
 
 ---
 
+## LLM providers
+
+Agents depend on a `StructuredLLM` port, never on a vendor SDK. Two adapters ship:
+
+| `AUDITOR_LLM_PROVIDER` | Talks to | PDF handling | Structured output |
+|---|---|---|---|
+| `anthropic` | Claude API (`ANTHROPIC_API_KEY`) | native PDF input | Anthropic structured outputs |
+| `openai_compatible` | any `/chat/completions` endpoint (`AUDITOR_LLM_BASE_URL`, `AUDITOR_LLM_API_KEY`) | text layer (default) or file part | `json_schema` / `json_object` / prompt-only, configurable per endpoint |
+
+The OpenAI-compatible adapter assumes nothing about the endpoint: it writes the schema into the prompt as well as
+`response_format`, extracts JSON defensively (reasoning blocks, code fences, prose), validates against the Pydantic
+model, retries 429/5xx with `Retry-After`, and throttles client-side for strict free tiers
+(`AUDITOR_LLM_MIN_INTERVAL_S`). It records the model *the endpoint reports* having served - gateways may route
+elsewhere - and the eval report shows it.
+
+None of this affects correctness guarantees: a weaker model produces more documents routed to humans, not more
+wrong verdicts. That claim is what the eval measures.
+
+## Evaluation
+
+```bash
+python -m evals.run            # uses the LLM configured in .env; writes docs/eval/<model>.md and .json
+```
+
+Runs the real parser and contract agent over the 8 invoices and 3 contracts and reports, per model: how many
+documents were auto-processed (grounded), field-level accuracy, outcome accuracy, latency, tokens - and
+**silently wrong**: documents that were auto-processed *and* reached the wrong outcome. Everything else is a cost;
+that one is a failure. The command exits non-zero if it is ever above zero. Results are committed under
+[`docs/eval/`](docs/eval/); the scoring code itself is tested in CI with a scripted model.
+
+---
+
 ## What CI verifies on every push
 
 Every claim in this README is a test. Two jobs run on each push:
 
 | Job | What it proves |
 |---|---|
-| **quality** | ruff + format, mypy `--strict`, 161 tests against both SQLite and a Postgres service container, and that committed test fixtures match a fresh, byte-reproducible build |
+| **quality** | ruff + format, mypy `--strict`, 205 tests against both SQLite and a Postgres service container, and that committed test fixtures match a fresh, byte-reproducible build |
 | **compose-smoke** | `docker compose up` from a clean checkout; all 8 golden scenarios replayed over HTTP; the full agent workflow with no LLM key (degraded parse → manual entry → approval); the API container **restarted mid-approval** with the approval still pending afterwards; the four-eyes rule returning `403`; final `PAID`; and the application's database role failing to write |
 
 The real Claude API is never called in CI. The workflow is tested with a scripted fake LLM - including the
 failure modes (unavailable, refusal, truncation, hallucinated values, "helpfully" corrected arithmetic) - and
-the Anthropic adapter is exercised through the real SDK against a mock HTTP transport. A live evaluation
-against the real API exists (`pytest -m live`) but costs tokens, so it is opt-in.
+both adapters are exercised over mock HTTP transports - the Anthropic one through the real SDK, the
+OpenAI-compatible one through every retry, throttle, and malformed-output path. Live evaluation
+(`python -m evals.run`) costs tokens or quota, so it is opt-in.
 
 ---
 
@@ -211,8 +260,8 @@ ruff check . && ruff format --check . && mypy && pytest     # the CI gate, local
 docker compose up -d postgres
 AUDITOR_TEST_DATABASE_URL=postgresql://erp_admin:<POSTGRES_PASSWORD>@localhost:5432/postgres pytest
 
-# Live extraction eval against the real Claude API (costs tokens; never runs in CI):
-ANTHROPIC_API_KEY=sk-ant-... pytest -m live -s
+# Live evaluation against whichever LLM .env configures (costs tokens/quota; never runs in CI):
+python -m evals.run
 
 # Run the API against the local SQLite ledger:
 uvicorn auditor.api.app:create_app --factory --reload
@@ -248,9 +297,9 @@ stale.
 src/auditor/
   domain/          enums (findings, severities, verdicts) and Pydantic models
   rules/engine.py  gather_facts() [I/O] + evaluate() [pure]
-  agents/          Document Parser (Claude + grounding) and Explainer (Claude + template fallback)
+  agents/          invoice parser + contract reader (LLM + grounding), explainer (LLM + template fallback)
   workflow/        LangGraph state machine, run service, checkpointer wiring
-  llm/             StructuredLLM port + Anthropic adapter (structured outputs)
+  llm/             StructuredLLM port; Anthropic and OpenAI-compatible adapters
   documents/       content-addressed PDF store, text-layer extraction
   payments.py      idempotent simulated payment gateway
   ports.py         LedgerReader protocol (read-only)
@@ -260,6 +309,7 @@ src/auditor/
   logging_setup.py structured JSON logging with request IDs
 db/postgres/       schema, read-only ledger role, checkpoint role (docker-entrypoint-initdb.d)
 scripts/demo.sh    end-to-end walkthrough against a running stack
+evals/             live evaluation harness (python -m evals.run) -> docs/eval/
 tests/             unit, golden end-to-end (both backends), workflow (scripted fake LLM), API, live eval
 .github/workflows/ lint → types → tests (SQLite + Postgres) → fixture freshness → docker compose smoke test
                    (golden scenarios over HTTP, degraded agent path, restart-surviving approval, four-eyes)
@@ -272,12 +322,15 @@ tests/             unit, golden end-to-end (both backends), workflow (scripted f
 This is a portfolio system built to production standards, not a production system. The gaps, stated plainly:
 
 - **No authentication.** `approver` and `entered_by` are free-text fields; anyone who can reach the API can
-  approve. The four-eyes check compares names, not identities. (M5: real auth and roles.)
+  approve. The four-eyes check compares names, not identities. (M6: real auth and roles.)
 - **Executed payments are not written back to the ledger.** The ledger is read-only by design and payments are
   simulated, so the same invoice could be approved again in a *new* run. Within a run, payment is idempotent;
-  across runs it is not. (M5: durable payment outbox feeding the duplicate check.)
-- **No live accuracy numbers yet.** Extraction quality on real Claude calls is measured by `pytest -m live`, which
-  has not been run for this README. The tests prove the *guards* around the model, not the model's accuracy.
+  across runs it is not. (M6: durable payment outbox feeding the duplicate check.)
+- **Live numbers depend on the endpoint.** `docs/eval/` reports whatever model was configured. Through a
+  third-party gateway, "which model answered" is what the gateway reports, not something this system can verify.
+- **Text-layer mode weakens grounding.** With `AUDITOR_LLM_PDF_MODE=text` the model reads the same text layer it
+  is grounded against, so grounding catches invented values but not misattributed ones (a real amount copied
+  into the wrong field). Native PDF input (Anthropic, or `file` mode) keeps the two independent.
 - **Grounding is necessary, not sufficient.** It proves a value appears on the page, not that it was read from
   the right place - a short amount like `540.00` could match inside `2,540.00`. Rules and a human still follow.
 - **Scanned PDFs go straight to manual entry.** Without a text layer, extractions can't be grounded, so the
@@ -285,7 +338,7 @@ This is a portfolio system built to production standards, not a production syste
 - **Uploads are processed synchronously.** Fine for a demo; production would queue them. The per-run decision
   lock is per-process; multiple replicas would need a database lock.
 - **Line items are matched to the contract deterministically only.** Descriptions that don't match a rate-card
-  entry exactly are escalated to a human rather than fuzzy-matched.
+  entry exactly are escalated to a human rather than fuzzy-matched; LLM-proposed mappings are not built yet.
 
 ---
 
@@ -296,7 +349,8 @@ This is a portfolio system built to production standards, not a production syste
 - [x] **M2** Settings, structured logging, FastAPI, Postgres, Docker Compose
 - [x] **M3** LangGraph workflow: Claude document parser with grounding, explainer, HITL approval with Postgres
       checkpoints, manual-entry fallback, four-eyes, pre-payment re-audit, idempotent simulated payment
-- [ ] **M4** Contract agent (Claude reads contract PDFs → rate card, cross-checked against the ERP mirror),
-      LLM-proposed line-item mappings for human confirmation, evaluation harness with real CUAD contracts
-- [ ] **M5** Authentication and roles for approvers, append-only audit log, async job queue for uploads,
+- [x] **M4** Contract-reconciliation agent, provider-agnostic LLM port (Anthropic + any OpenAI-compatible
+      endpoint), live evaluation harness with a "silently wrong" safety metric
+- [ ] **M5** LLM-proposed line-item mappings for human confirmation; real CUAD contracts in the eval set
+- [ ] **M6** Authentication and roles for approvers, append-only audit log, async job queue for uploads,
       durable payment outbox written back to the ledger

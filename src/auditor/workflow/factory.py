@@ -16,6 +16,22 @@ logger = logging.getLogger(__name__)
 
 
 def build_llm(settings: Settings, model: str) -> StructuredLLM | None:
+    if settings.llm_provider == "openai_compatible":
+        if settings.llm_api_key is None or not settings.llm_base_url:
+            logger.warning("No LLM endpoint credentials configured; LLM steps will degrade", extra={"model": model})
+            return None
+        from auditor.llm.openai_compatible import OpenAICompatibleLLM  # noqa: PLC0415
+
+        return OpenAICompatibleLLM(
+            base_url=settings.llm_base_url,
+            api_key=settings.llm_api_key.get_secret_value(),
+            model=model,
+            timeout_s=settings.llm_timeout_s,
+            max_retries=settings.llm_max_retries,
+            min_interval_s=settings.llm_min_interval_s,
+            json_mode=settings.llm_json_mode,
+            pdf_mode=settings.llm_pdf_mode,
+        )
     if settings.anthropic_api_key is None:
         logger.warning("No Anthropic API key configured; LLM steps will degrade", extra={"model": model})
         return None

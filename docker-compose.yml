@@ -39,8 +39,16 @@ services:
       AUDITOR_CHECKPOINTER: postgres
       AUDITOR_STATE_DATABASE_URL: postgresql://auditor_state:${AUDITOR_STATE_DB_PASSWORD}@postgres:5432/erp
       AUDITOR_LOG_LEVEL: ${AUDITOR_LOG_LEVEL:-INFO}
-      # Optional. Without it, parsing degrades to human data entry and explanations to templates.
+      # LLM: optional. Without credentials, parsing degrades to human data entry and
+      # explanations to templates. See .env.example for every option.
+      AUDITOR_LLM_PROVIDER: ${AUDITOR_LLM_PROVIDER:-anthropic}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AUDITOR_LLM_BASE_URL: ${AUDITOR_LLM_BASE_URL:-}
+      AUDITOR_LLM_API_KEY: ${AUDITOR_LLM_API_KEY:-}
+      AUDITOR_LLM_JSON_MODE: ${AUDITOR_LLM_JSON_MODE:-json_schema}
+      AUDITOR_LLM_PDF_MODE: ${AUDITOR_LLM_PDF_MODE:-text}
+      AUDITOR_LLM_MIN_INTERVAL_S: ${AUDITOR_LLM_MIN_INTERVAL_S:-0}
+      AUDITOR_LLM_TIMEOUT_S: ${AUDITOR_LLM_TIMEOUT_S:-60}
       AUDITOR_LLM_PARSER_MODEL: ${AUDITOR_LLM_PARSER_MODEL:-claude-sonnet-5-5}
       AUDITOR_LLM_EXPLAINER_MODEL: ${AUDITOR_LLM_EXPLAINER_MODEL:-claude-haiku-5-5}
     depends_on:

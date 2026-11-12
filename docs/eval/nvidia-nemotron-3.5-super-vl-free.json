@@ -1,0 +1,286 @@
+{
+  "requested_model": "nvidia/nemotron-3.5-super-vl:free",
+  "endpoint": "openrouter.ai",
+  "settings": {
+    "provider": "openai_compatible",
+    "json_mode": "json_schema",
+    "pdf_mode": "text"
+  },
+  "started_at": "2026-11-12T18:41:42+00:00",
+  "results": [
+    {
+      "kind": "invoice",
+      "doc_id": "S01_clean_services",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "APPROVE_PENDING_HUMAN",
+      "got_outcome": "APPROVE_PENDING_HUMAN",
+      "latency_ms": 9528,
+      "input_tokens": 1266,
+      "output_tokens": 1566,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S02_clean_goods_with_tax",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "APPROVE_PENDING_HUMAN",
+      "got_outcome": "APPROVE_PENDING_HUMAN",
+      "latency_ms": 14891,
+      "input_tokens": 1297,
+      "output_tokens": 2018,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S03_rate_overcharge",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "BLOCK",
+      "got_outcome": "BLOCK",
+      "latency_ms": 19095,
+      "input_tokens": 1243,
+      "output_tokens": 1475,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S04_exact_duplicate",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "BLOCK",
+      "got_outcome": "BLOCK",
+      "latency_ms": 9503,
+      "input_tokens": 1245,
+      "output_tokens": 1354,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S05_arithmetic_mismatch",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "BLOCK",
+      "got_outcome": "BLOCK",
+      "latency_ms": 10593,
+      "input_tokens": 1296,
+      "output_tokens": 2099,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S06_po_budget_exceeded",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "BLOCK",
+      "got_outcome": "BLOCK",
+      "latency_ms": 12200,
+      "input_tokens": 1264,
+      "output_tokens": 1819,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S07_remit_to_changed",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "BLOCK",
+      "got_outcome": "BLOCK",
+      "latency_ms": 7172,
+      "input_tokens": 1271,
+      "output_tokens": 1543,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S08_near_duplicate",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "REVIEW",
+      "got_outcome": "REVIEW",
+      "latency_ms": 8255,
+      "input_tokens": 1237,
+      "output_tokens": 1683,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+    },
+    {
+      "kind": "contract",
+      "doc_id": "MSA-HDS-2025-014",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "contract_ref": true,
+        "supplier_tax_id": true,
+        "effective_date": true,
+        "expiry_date": true,
+        "payment_terms_days": true,
+        "rate_card": true
+      },
+      "expected_outcome": "CONSISTENT",
+      "got_outcome": "CONSISTENT",
+      "latency_ms": 6312,
+      "input_tokens": 1759,
+      "output_tokens": 1159,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+    },
+    {
+      "kind": "contract",
+      "doc_id": "SUPPLY-MIS-2024-007",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "contract_ref": true,
+        "supplier_tax_id": true,
+        "effective_date": true,
+        "expiry_date": true,
+        "payment_terms_days": true,
+        "rate_card": true
+      },
+      "expected_outcome": "CONSISTENT",
+      "got_outcome": "CONSISTENT",
+      "latency_ms": 16856,
+      "input_tokens": 1782,
+      "output_tokens": 2653,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+    },
+    {
+      "kind": "contract",
+      "doc_id": "MSA-KFC-2025-003",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "contract_ref": true,
+        "supplier_tax_id": true,
+        "effective_date": true,
+        "expiry_date": true,
+        "payment_terms_days": true,
+        "rate_card": true
+      },
+      "expected_outcome": "CONSISTENT",
+      "got_outcome": "CONSISTENT",
+      "latency_ms": 7490,
+      "input_tokens": 1779,
+      "output_tokens": 1003,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+    }
+  ],
+  "summary": {
+    "invoice": {
+      "documents": 8,
+      "grounded": 8,
+      "field_accuracy_on_grounded": 1.0,
+      "outcome_correct": 8,
+      "silently_wrong": 0,
+      "avg_latency_ms": 11405,
+      "input_tokens": 10119,
+      "output_tokens": 13557
+    },
+    "contract": {
+      "documents": 3,
+      "grounded": 3,
+      "field_accuracy_on_grounded": 1.0,
+      "outcome_correct": 3,
+      "silently_wrong": 0,
+      "avg_latency_ms": 10219,
+      "input_tokens": 5320,
+      "output_tokens": 4815
+    }
+  }
+}

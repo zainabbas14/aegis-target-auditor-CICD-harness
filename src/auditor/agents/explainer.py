@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from auditor.domain.enums import Verdict
 from auditor.domain.models import AuditResult
-from auditor.llm.ports import LLMError, StructuredLLM
+from auditor.llm.ports import LLMError, StructuredLLM, TextPart
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ class Explainer:
             draft = self._llm.generate(
                 output_type=NarrativeDraft,
                 system=SYSTEM_PROMPT,
-                content=[{"type": "text", "text": json.dumps(payload, indent=2)}],
+                content=[TextPart(json.dumps(payload, indent=2))],
                 max_tokens=600,
                 purpose="explain_audit",
             )

@@ -1,0 +1,286 @@
+{
+  "requested_model": "dots-studio/dots-3-note-preview:free",
+  "endpoint": "openrouter.ai",
+  "settings": {
+    "provider": "openai_compatible",
+    "json_mode": "json_schema",
+    "pdf_mode": "text"
+  },
+  "started_at": "2026-11-12T18:44:17+00:00",
+  "results": [
+    {
+      "kind": "invoice",
+      "doc_id": "S01_clean_services",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "APPROVE_PENDING_HUMAN",
+      "got_outcome": "APPROVE_PENDING_HUMAN",
+      "latency_ms": 17139,
+      "input_tokens": 1230,
+      "output_tokens": 1843,
+      "served_model": "dots-studio/dots-3-note-preview:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S02_clean_goods_with_tax",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "APPROVE_PENDING_HUMAN",
+      "got_outcome": "APPROVE_PENDING_HUMAN",
+      "latency_ms": 23560,
+      "input_tokens": 1253,
+      "output_tokens": 2058,
+      "served_model": "dots-studio/dots-3-note-preview:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S03_rate_overcharge",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "BLOCK",
+      "got_outcome": "BLOCK",
+      "latency_ms": 17910,
+      "input_tokens": 1207,
+      "output_tokens": 1922,
+      "served_model": "dots-studio/dots-3-note-preview:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S04_exact_duplicate",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "BLOCK",
+      "got_outcome": "BLOCK",
+      "latency_ms": 24272,
+      "input_tokens": 1206,
+      "output_tokens": 2393,
+      "served_model": "dots-studio/dots-3-note-preview:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S05_arithmetic_mismatch",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "BLOCK",
+      "got_outcome": "BLOCK",
+      "latency_ms": 17610,
+      "input_tokens": 1253,
+      "output_tokens": 1542,
+      "served_model": "dots-studio/dots-3-note-preview:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S06_po_budget_exceeded",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "BLOCK",
+      "got_outcome": "BLOCK",
+      "latency_ms": 9918,
+      "input_tokens": 1220,
+      "output_tokens": 1011,
+      "served_model": "dots-studio/dots-3-note-preview:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S07_remit_to_changed",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "BLOCK",
+      "got_outcome": "BLOCK",
+      "latency_ms": 19779,
+      "input_tokens": 1229,
+      "output_tokens": 1991,
+      "served_model": "dots-studio/dots-3-note-preview:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S08_near_duplicate",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "REVIEW",
+      "got_outcome": "REVIEW",
+      "latency_ms": 15511,
+      "input_tokens": 1201,
+      "output_tokens": 1641,
+      "served_model": "dots-studio/dots-3-note-preview:free"
+    },
+    {
+      "kind": "contract",
+      "doc_id": "MSA-HDS-2025-014",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "contract_ref": true,
+        "supplier_tax_id": true,
+        "effective_date": true,
+        "expiry_date": true,
+        "payment_terms_days": true,
+        "rate_card": true
+      },
+      "expected_outcome": "CONSISTENT",
+      "got_outcome": "CONSISTENT",
+      "latency_ms": 11297,
+      "input_tokens": 1679,
+      "output_tokens": 1044,
+      "served_model": "dots-studio/dots-3-note-preview:free"
+    },
+    {
+      "kind": "contract",
+      "doc_id": "SUPPLY-MIS-2024-007",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "contract_ref": true,
+        "supplier_tax_id": true,
+        "effective_date": true,
+        "expiry_date": true,
+        "payment_terms_days": true,
+        "rate_card": true
+      },
+      "expected_outcome": "CONSISTENT",
+      "got_outcome": "CONSISTENT",
+      "latency_ms": 41888,
+      "input_tokens": 1699,
+      "output_tokens": 3685,
+      "served_model": "dots-studio/dots-3-note-preview:free"
+    },
+    {
+      "kind": "contract",
+      "doc_id": "MSA-KFC-2025-003",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "contract_ref": true,
+        "supplier_tax_id": true,
+        "effective_date": true,
+        "expiry_date": true,
+        "payment_terms_days": true,
+        "rate_card": true
+      },
+      "expected_outcome": "CONSISTENT",
+      "got_outcome": "CONSISTENT",
+      "latency_ms": 25829,
+      "input_tokens": 1695,
+      "output_tokens": 2452,
+      "served_model": "dots-studio/dots-3-note-preview:free"
+    }
+  ],
+  "summary": {
+    "invoice": {
+      "documents": 8,
+      "grounded": 8,
+      "field_accuracy_on_grounded": 1.0,
+      "outcome_correct": 8,
+      "silently_wrong": 0,
+      "avg_latency_ms": 18212,
+      "input_tokens": 9799,
+      "output_tokens": 14401
+    },
+    "contract": {
+      "documents": 3,
+      "grounded": 3,
+      "field_accuracy_on_grounded": 1.0,
+      "outcome_correct": 3,
+      "silently_wrong": 0,
+      "avg_latency_ms": 26338,
+      "input_tokens": 5073,
+      "output_tokens": 7181
+    }
+  }
+}

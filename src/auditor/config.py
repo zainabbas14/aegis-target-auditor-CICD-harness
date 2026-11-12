@@ -30,10 +30,18 @@ class Settings(BaseSettings):
 
     near_duplicate_window_days: int = Field(default=30, gt=0)
 
-    # --- LLM (Anthropic). No key -> agents degrade: parsing to manual entry, explanations to templates.
+    # --- LLM. No credentials -> agents degrade: parsing to manual entry, explanations to templates.
+    llm_provider: Literal["anthropic", "openai_compatible"] = "anthropic"
     anthropic_api_key: SecretStr | None = Field(
         default=None, validation_alias=AliasChoices("AUDITOR_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY")
     )
+    # openai_compatible: any /chat/completions endpoint (OpenRouter, api.airforce, vLLM, Ollama, ...)
+    llm_base_url: str | None = None
+    llm_api_key: SecretStr | None = None
+    llm_json_mode: Literal["json_schema", "json_object", "none"] = "json_schema"
+    llm_pdf_mode: Literal["text", "file"] = "text"
+    llm_min_interval_s: float = Field(default=0.0, ge=0)
+
     llm_parser_model: str = "claude-sonnet-5-5"
     llm_explainer_model: str = "claude-haiku-5-5"
     llm_timeout_s: float = Field(default=60.0, gt=0)
@@ -46,7 +54,9 @@ class Settings(BaseSettings):
     documents_dir: Path = Path(".data/documents")
     max_upload_bytes: int = Field(default=10 * 1024 * 1024, gt=0)
 
-    @field_validator("anthropic_api_key", "database_url", "state_database_url", mode="before")
+    @field_validator(
+        "anthropic_api_key", "llm_api_key", "llm_base_url", "database_url", "state_database_url", mode="before"
+    )
     @classmethod
     def _blank_is_unset(cls, v: object) -> object:
         # docker compose passes `${VAR:-}` through as "", which must mean "not configured".
@@ -60,6 +70,8 @@ class Settings(BaseSettings):
             raise ValueError("AUDITOR_DB_POOL_MIN must be <= AUDITOR_DB_POOL_MAX")
         if self.env == "prod" and self.ledger_backend == "sqlite":
             raise ValueError("SQLite ledger is not permitted when AUDITOR_ENV=prod")
+        if self.llm_provider == "openai_compatible" and self.llm_api_key is not None and not self.llm_base_url:
+            raise ValueError("AUDITOR_LLM_BASE_URL is required when AUDITOR_LLM_PROVIDER=openai_compatible")
         if self.checkpointer == "postgres" and self.state_database_url is None:
             raise ValueError("AUDITOR_STATE_DATABASE_URL is required when AUDITOR_CHECKPOINTER=postgres")
         if self.env == "prod" and self.checkpointer == "memory":

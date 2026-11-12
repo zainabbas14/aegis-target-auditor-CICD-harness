@@ -14,17 +14,15 @@ the fraud it represents would be silently erased before the rules see it.
 
 from __future__ import annotations
 
-import base64
 import logging
-import re
-from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import InvalidOperation
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from auditor.agents.normalize import clean_money, date_renderings, money_renderings
 from auditor.documents.store import pdf_text
 from auditor.domain.models import ExtractedInvoice
-from auditor.llm.ports import LLMError, StructuredLLM
+from auditor.llm.ports import LLMError, PdfPart, StructuredLLM, TextPart
 
 logger = logging.getLogger(__name__)
 
@@ -83,38 +81,17 @@ class ExtractionFailedError(Exception):
         self.detail = detail
 
 
-_MONEY_JUNK = re.compile(r"[\s,$€£]|USD|PKR")
-
-
-def _clean_money(value: str) -> str:
-    return _MONEY_JUNK.sub("", value)
-
-
 def to_extracted_invoice(raw: InvoiceExtraction) -> ExtractedInvoice:
     """Deterministic normalisation + shape validation of the LLM's transcription."""
     data = raw.model_dump()
     for key in ("subtotal", "tax", "total"):
-        data[key] = _clean_money(data[key])
+        data[key] = clean_money(data[key])
     for line in data["line_items"]:
         for key in ("quantity", "unit_price", "amount"):
-            line[key] = _clean_money(line[key])
+            line[key] = clean_money(line[key])
         line["item_code"] = line["item_code"] or None
     data["currency"] = data["currency"].strip().upper()
     return ExtractedInvoice.model_validate(data)
-
-
-def _money_renderings(value: Decimal) -> set[str]:
-    return {f"{value:,.2f}", f"{value:.2f}"}
-
-
-def _date_renderings(d: date) -> set[str]:
-    return {
-        d.isoformat(),
-        d.strftime("%m/%d/%Y"),
-        d.strftime("%d/%m/%Y"),
-        d.strftime("%d %b %Y"),
-        f"{d:%B} {d.day}, {d.year}",
-    }
 
 
 def ungrounded_fields(inv: ExtractedInvoice, text: str) -> list[str]:
@@ -125,18 +102,18 @@ def ungrounded_fields(inv: ExtractedInvoice, text: str) -> list[str]:
         if getattr(inv, name) not in text
     ]
     for name in ("subtotal", "total"):
-        if not any(r in text for r in _money_renderings(getattr(inv, name))):
+        if not any(r in text for r in money_renderings(getattr(inv, name))):
             missing.append(name)
-    if inv.tax and not any(r in text for r in _money_renderings(inv.tax)):
+    if inv.tax and not any(r in text for r in money_renderings(inv.tax)):
         missing.append("tax")
     for i, line in enumerate(inv.line_items, start=1):
-        if not any(r in text for r in _money_renderings(line.amount)):
+        if not any(r in text for r in money_renderings(line.amount)):
             missing.append(f"line_items[{i}].amount")
-        if not any(r in text for r in _money_renderings(line.unit_price)):
+        if not any(r in text for r in money_renderings(line.unit_price)):
             missing.append(f"line_items[{i}].unit_price")
         if line.item_code is not None and line.item_code not in text:
             missing.append(f"line_items[{i}].item_code")
-    if not any(r in text for r in _date_renderings(inv.invoice_date)):
+    if not any(r in text for r in date_renderings(inv.invoice_date)):
         missing.append("invoice_date")
     return missing
 
@@ -157,15 +134,8 @@ class DocumentParser:
                 output_type=InvoiceExtraction,
                 system=SYSTEM_PROMPT,
                 content=[
-                    {
-                        "type": "document",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "application/pdf",
-                            "data": base64.b64encode(pdf).decode("ascii"),
-                        },
-                    },
-                    {"type": "text", "text": "Transcribe this invoice."},
+                    PdfPart(data=pdf, text_layer=text, filename="invoice.pdf"),
+                    TextPart("Transcribe this invoice."),
                 ],
                 max_tokens=4096,
                 purpose="parse_invoice",

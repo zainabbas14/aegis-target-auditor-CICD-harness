@@ -1,0 +1,242 @@
+{
+  "requested_model": "liquid/lfm-3-1.7b:free",
+  "endpoint": "openrouter.ai",
+  "settings": {
+    "provider": "openai_compatible",
+    "json_mode": "json_schema",
+    "pdf_mode": "text"
+  },
+  "started_at": "2026-11-12T18:48:26+00:00",
+  "results": [
+    {
+      "kind": "invoice",
+      "doc_id": "S01_clean_services",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "APPROVE_PENDING_HUMAN",
+      "got_outcome": "APPROVE_PENDING_HUMAN",
+      "latency_ms": 16015,
+      "input_tokens": 1207,
+      "output_tokens": 3873,
+      "served_model": "liquid/lfm-3-1.7b:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S02_clean_goods_with_tax",
+      "grounded": false,
+      "failure": "llm_truncated",
+      "fields": {},
+      "expected_outcome": "APPROVE_PENDING_HUMAN",
+      "got_outcome": null,
+      "latency_ms": 16720,
+      "input_tokens": 1227,
+      "output_tokens": 4096,
+      "served_model": "liquid/lfm-3-1.7b:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S03_rate_overcharge",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "BLOCK",
+      "got_outcome": "BLOCK",
+      "latency_ms": 13085,
+      "input_tokens": 1192,
+      "output_tokens": 3130,
+      "served_model": "liquid/lfm-3-1.7b:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S04_exact_duplicate",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": false
+      },
+      "expected_outcome": "BLOCK",
+      "got_outcome": "BLOCK",
+      "latency_ms": 11751,
+      "input_tokens": 1199,
+      "output_tokens": 4062,
+      "served_model": "liquid/lfm-3-1.7b:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S05_arithmetic_mismatch",
+      "grounded": false,
+      "failure": "llm_truncated",
+      "fields": {},
+      "expected_outcome": "BLOCK",
+      "got_outcome": null,
+      "latency_ms": 16268,
+      "input_tokens": 1226,
+      "output_tokens": 4096,
+      "served_model": "liquid/lfm-3-1.7b:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S06_po_budget_exceeded",
+      "grounded": false,
+      "failure": "llm_truncated",
+      "fields": {},
+      "expected_outcome": "BLOCK",
+      "got_outcome": null,
+      "latency_ms": 17243,
+      "input_tokens": 1199,
+      "output_tokens": 4096,
+      "served_model": "liquid/lfm-3-1.7b:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S07_remit_to_changed",
+      "grounded": false,
+      "failure": "llm_truncated",
+      "fields": {},
+      "expected_outcome": "BLOCK",
+      "got_outcome": null,
+      "latency_ms": 16096,
+      "input_tokens": 1217,
+      "output_tokens": 4096,
+      "served_model": "liquid/lfm-3-1.7b:free"
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S08_near_duplicate",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "REVIEW",
+      "got_outcome": "REVIEW",
+      "latency_ms": 10271,
+      "input_tokens": 1189,
+      "output_tokens": 3567,
+      "served_model": "liquid/lfm-3-1.7b:free"
+    },
+    {
+      "kind": "contract",
+      "doc_id": "MSA-HDS-2025-014",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "contract_ref": true,
+        "supplier_tax_id": true,
+        "effective_date": true,
+        "expiry_date": true,
+        "payment_terms_days": true,
+        "rate_card": true
+      },
+      "expected_outcome": "CONSISTENT",
+      "got_outcome": "CONSISTENT",
+      "latency_ms": 6069,
+      "input_tokens": 1715,
+      "output_tokens": 2186,
+      "served_model": "liquid/lfm-3-1.7b:free"
+    },
+    {
+      "kind": "contract",
+      "doc_id": "SUPPLY-MIS-2024-007",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "contract_ref": true,
+        "supplier_tax_id": true,
+        "effective_date": true,
+        "expiry_date": true,
+        "payment_terms_days": true,
+        "rate_card": true
+      },
+      "expected_outcome": "CONSISTENT",
+      "got_outcome": "CONSISTENT",
+      "latency_ms": 17196,
+      "input_tokens": 1732,
+      "output_tokens": 3614,
+      "served_model": "liquid/lfm-3-1.7b:free"
+    },
+    {
+      "kind": "contract",
+      "doc_id": "MSA-KFC-2025-003",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "contract_ref": true,
+        "supplier_tax_id": true,
+        "effective_date": true,
+        "expiry_date": true,
+        "payment_terms_days": true,
+        "rate_card": true
+      },
+      "expected_outcome": "CONSISTENT",
+      "got_outcome": "CONSISTENT",
+      "latency_ms": 17547,
+      "input_tokens": 1733,
+      "output_tokens": 3457,
+      "served_model": "liquid/lfm-3-1.7b:free"
+    }
+  ],
+  "summary": {
+    "invoice": {
+      "documents": 8,
+      "grounded": 4,
+      "field_accuracy_on_grounded": 0.975,
+      "outcome_correct": 4,
+      "silently_wrong": 0,
+      "avg_latency_ms": 14681,
+      "input_tokens": 9656,
+      "output_tokens": 31016
+    },
+    "contract": {
+      "documents": 3,
+      "grounded": 3,
+      "field_accuracy_on_grounded": 1.0,
+      "outcome_correct": 3,
+      "silently_wrong": 0,
+      "avg_latency_ms": 13604,
+      "input_tokens": 5180,
+      "output_tokens": 9257
+    }
+  }
+}
