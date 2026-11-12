@@ -36,8 +36,9 @@ cp .env.example .env && docker compose up --build -d --wait
   its rate card and the ERP's copy - the numbers the auditor trusts are themselves checked
 - **Any LLM, one env var:** Claude directly, or any OpenAI-compatible endpoint (OpenRouter, vLLM, Ollama, ...)
 - **Works with no LLM at all** - every LLM step has a deterministic fallback, exercised in CI on every push
-- **Measured, not claimed:** `python -m evals.run` scores any configured model on the golden set, including
-  the one number that must be zero - documents that were auto-processed *and* got the wrong outcome
+- **Measured, not claimed:** across 33 documents and 3 models - from a 120B model down to a 1.7B one -
+  **0 were auto-processed with the wrong outcome**. Weaker models sent more documents to a human; none
+  let a wrong verdict through ([results](#evaluation-results))
 - **205 tests**, mypy `--strict`, every ledger test run against both SQLite and Postgres
 
 ---
@@ -229,6 +230,34 @@ documents were auto-processed (grounded), field-level accuracy, outcome accuracy
 that one is a failure. The command exits non-zero if it is ever above zero. Results are committed under
 [`docs/eval/`](docs/eval/); the scoring code itself is tested in CI with a scripted model.
 
+### Evaluation results
+
+November 2026 · OpenRouter free tier · `pdf_mode=text`, `json_mode=json_schema` · one run per model.
+
+| Model | Size | Invoices auto-processed | Field accuracy | Contracts | **Silently wrong** | Avg latency | Report |
+|---|---|---|---|---|---|---|---|
+| `nvidia/nemotron-3.5-super-vl` | 120B MoE, 12B active | 8/8 | 100% | 3/3 | **0** | 11.4 s | [md](docs/eval/nvidia-nemotron-3.5-super-vl-free.md) |
+| `dots-studio/dots-3-note-preview` | not published | 8/8 | 100% | 3/3 | **0** | 18.2 s | [md](docs/eval/dots-studio-dots-3-note-preview-free.md) |
+| `liquid/lfm-3-1.7b` | 1.7B | 4/8 | 98% | 3/3 | **0** | 14.7 s | [md](docs/eval/liquid-lfm-3-1.7b-free.md) |
+
+What the runs show:
+
+- **The arithmetic trap held.** Both mid-size models transcribed S05's transposed subtotal *as printed* rather
+  than correcting it, so the rule engine caught and blocked the arithmetic fraud. They also left `item_code`
+  empty on the layout that prints no codes; the deterministic matcher resolved those lines from descriptions.
+- **The small model failed safely.** All four of its misses were `llm_truncated`: it reasons before answering,
+  and reasoning plus answer exceeded the 4,096-token budget (≈31k output tokens for 8 invoices vs ≈14k for the
+  larger models). The adapter treated cut-off output as untrustworthy and the invoices went to a human.
+- **Grounding is necessary, not sufficient - observed, not just argued.** One of the small model's grounded
+  invoices had a wrong line-item sub-field. Its verdict was still correct because that value was not
+  decision-relevant, but it shows grounding checks identifiers and amounts, not every field.
+- **0 silently wrong across 33 documents.** Model quality moved the auto-processing rate (100% → 50% of
+  invoices), never the error rate.
+
+Caveats: 11 synthetic documents with known answers, one run per model, text-layer input, free-tier endpoints
+whose served model is as reported by the gateway. This demonstrates the safety property and the failure modes;
+it is not a benchmark of the models.
+
 ---
 
 ## What CI verifies on every push
@@ -328,6 +357,9 @@ This is a portfolio system built to production standards, not a production syste
   across runs it is not. (M6: durable payment outbox feeding the duplicate check.)
 - **Live numbers depend on the endpoint.** `docs/eval/` reports whatever model was configured. Through a
   third-party gateway, "which model answered" is what the gateway reports, not something this system can verify.
+- **Reasoning models can exhaust the token budget.** Output is capped at 4,096 tokens per call, reasoning
+  included; a model that thinks at length gets truncated and the document goes to a human (see results above).
+  Safe, but it lowers automation for small reasoning models. A configurable budget is a one-line change.
 - **Text-layer mode weakens grounding.** With `AUDITOR_LLM_PDF_MODE=text` the model reads the same text layer it
   is grounded against, so grounding catches invented values but not misattributed ones (a real amount copied
   into the wrong field). Native PDF input (Anthropic, or `file` mode) keeps the two independent.

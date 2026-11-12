@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   quality:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: ubuntu-latest moves to 26.04 from Oct 2026
     timeout-minutes: 10
     services:
       postgres:
@@ -62,7 +62,7 @@ jobs:
   compose-smoke:
     # The README promises `docker compose up` works. This job proves it on every push.
     needs: quality
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: ubuntu-latest moves to 26.04 from Oct 2026
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
