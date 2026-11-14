@@ -285,6 +285,32 @@ Caveats: 11 synthetic documents with known answers, one run per model, text-laye
 whose served model is as reported by the gateway. This demonstrates the safety property and the failure modes;
 it is not a benchmark of the models.
 
+**Re-run after M5** (Nemotron, Nov 14): 9/9 invoices including the new S09, 0 silently wrong, and the
+line-item mapping proposal correct (1/1) - the model mapped "Sr. Data Eng. consulting" to `SENIOR_ENG` without
+ever being shown a price. [Report](docs/eval/nvidia-nemotron-3.5-super-vl-free.md).
+
+#### Real contracts (CUAD)
+
+| Model | Labels | Found | Located | **False claims** | Missed | Withheld | Precision | Recall | Report |
+|---|---|---|---|---|---|---|---|---|---|
+| `nvidia/nemotron-3.5-super-vl` | 48 | 23 | 23/23 | **1** | 1 | 8 | 96% | 82% | [md](docs/eval/cuad-nvidia-nemotron-3.5-super-vl-free.md) |
+
+Two runs, hours apart, produced identical counts - including the same contract truncating - so these are
+stable behaviours of this model on this data, not one-off noise.
+
+- **Every clause it claimed and got right, it located** - each quote overlaps the span the CUAD experts marked.
+- **All 8 withheld answers come from one contract.** That call hit the output-token cap on a ~2.9k-token input:
+  the model reasoned at length rather than quoting. Every category on it went to a human; on the other five
+  contracts nothing was withheld. Same failure mode, and same safe outcome, as the small model on invoices.
+- **The one "false claim" is a disputed label, not a model error.** Nemotron cited, as a Renewal Term, Flotek's
+  right to extend the term to 2024 "by written notice". CUAD's own definition of Renewal Term includes
+  "unilateral extensions with prior notice"; the annotators captured this exact sentence, but only under
+  Expiration Date. The scores above are left as measured - editing the answer key to flatter the model would be
+  worse - but counted against CUAD's definition, precision is 24/24. Printing the cited quote next to every false
+  claim is what made this checkable in a minute rather than arguable.
+- One miss (Governing Law, claimed absent). An "absent" answer has no quote to check, so misses are only
+  visible through evaluation - which is why this eval exists.
+
 ---
 
 ## What CI verifies on every push

@@ -63,6 +63,7 @@ class Cell:
     status: str
     outcome: str  # found | false_claim | correct_absent | missed | withheld
     located: bool = False
+    quote: str | None = None  # what the agent cited, so false claims can be read, not just counted
 
 
 def score(report: ClauseReport, contract: dict[str, Any]) -> list[Cell]:
@@ -84,6 +85,7 @@ def score(report: ClauseReport, contract: dict[str, Any]) -> list[Cell]:
                 status=answer.status.value,
                 outcome=outcome,
                 located=outcome == "found" and overlaps(answer.quote or "", spans),
+                quote=answer.quote,
             )
         )
     return cells
@@ -173,6 +175,10 @@ def render_markdown(model: str, endpoint: str, cells: list[Cell], calls: list[di
             f"{sum(c.outcome == 'false_claim' for c in cc)} | {sum(c.outcome == 'missed' for c in cc)} | "
             f"{sum(c.outcome == 'withheld' for c in cc)} |"
         )
+    claims = [c for c in cells if c.outcome == "false_claim"]
+    if claims:
+        lines += ["", "## False claims (read before trusting the label)", ""]
+        lines += [f"- **{c.category}** in `{c.contract[:60]}`: “{c.quote}”" for c in claims]
     lines += ["", "## Calls", "", "| Contract | Result | Latency | Tokens in / out |", "|---|---|---|---|"]
     for c in calls:
         lines.append(

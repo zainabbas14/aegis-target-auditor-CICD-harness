@@ -1,6 +1,6 @@
 # CUAD clause eval: `nvidia/nemotron-3.5-super-vl:free`
 
-- **Run:** 2026-11-14T05:28:05+00:00 · **Endpoint:** `openrouter.ai`
+- **Run:** 2026-11-14T05:33:54+00:00 · **Endpoint:** `openrouter.ai`
 - **Model(s) reported by the endpoint:** `nvidia/nemotron-3.5-super-vl:free`
 - **Data:** 6 contracts × 8 categories from [CUAD](https://www.atticusprojectai.org/cuad) (The Atticus Project, CC BY 4.0); 28 clauses present, 20 absent per the expert annotations.
 
@@ -25,13 +25,17 @@
 | Audit Rights | 3/6 | 2 | 0 | 0 | 1 |
 | Cap On Liability | 5/6 | 4 | 0 | 0 | 1 |
 
+## False claims (read before trusting the label)
+
+- **Renewal Term** in `FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT`: “Flotek, may, by written notice given to FCC on or before September 30, 2023, elect for the Term to be extended to December 31, 2024.”
+
 ## Calls
 
 | Contract | Result | Latency | Tokens in / out |
 |---|---|---|---|
-| DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT | ok | 14625 ms | 2249 / 1952 |
-| FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SER | llm_truncated | 37938 ms | 2894 / 6000 |
-| ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agr | ok | 16421 ms | 3620 / 2930 |
-| ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT | ok | 26078 ms | 3739 / 3848 |
-| LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT | ok | 18711 ms | 3848 / 2378 |
-| FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT | ok | 27296 ms | 4706 / 5024 |
+| DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT | ok | 17470 ms | 2249 / 2703 |
+| FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SER | llm_truncated | 40840 ms | 2894 / 6000 |
+| ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agr | ok | 13816 ms | 3620 / 2459 |
+| ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT | ok | 25010 ms | 3739 / 4063 |
+| LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT | ok | 17107 ms | 3848 / 2748 |
+| FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT | ok | 19759 ms | 4706 / 3761 |

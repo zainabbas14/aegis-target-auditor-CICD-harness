@@ -18,15 +18,15 @@
     {
       "contract": "DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT",
       "failure": null,
-      "latency_ms": 14625,
+      "latency_ms": 17470,
       "input_tokens": 2249,
-      "output_tokens": 1952,
+      "output_tokens": 2703,
       "served_model": "nvidia/nemotron-3.5-super-vl:free"
     },
     {
       "contract": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT",
       "failure": "llm_truncated",
-      "latency_ms": 37938,
+      "latency_ms": 40840,
       "input_tokens": 2894,
       "output_tokens": 6000,
       "served_model": "nvidia/nemotron-3.5-super-vl:free"
@@ -34,33 +34,33 @@
     {
       "contract": "ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agreement2",
       "failure": null,
-      "latency_ms": 16421,
+      "latency_ms": 13816,
       "input_tokens": 3620,
-      "output_tokens": 2930,
+      "output_tokens": 2459,
       "served_model": "nvidia/nemotron-3.5-super-vl:free"
     },
     {
       "contract": "ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT",
       "failure": null,
-      "latency_ms": 26078,
+      "latency_ms": 25010,
       "input_tokens": 3739,
-      "output_tokens": 3848,
+      "output_tokens": 4063,
       "served_model": "nvidia/nemotron-3.5-super-vl:free"
     },
     {
       "contract": "LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT",
       "failure": null,
-      "latency_ms": 18711,
+      "latency_ms": 17107,
       "input_tokens": 3848,
-      "output_tokens": 2378,
+      "output_tokens": 2748,
       "served_model": "nvidia/nemotron-3.5-super-vl:free"
     },
     {
       "contract": "FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT",
       "failure": null,
-      "latency_ms": 27296,
+      "latency_ms": 19759,
       "input_tokens": 4706,
-      "output_tokens": 5024,
+      "output_tokens": 3761,
       "served_model": "nvidia/nemotron-3.5-super-vl:free"
     }
   ],
@@ -71,7 +71,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "This Agreement shall be valid for an indefinite period."
     },
     {
       "contract": "DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT",
@@ -79,7 +80,8 @@
       "gold_present": false,
       "status": "ABSENT",
       "outcome": "correct_absent",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT",
@@ -87,7 +89,8 @@
       "gold_present": true,
       "status": "ABSENT",
       "outcome": "missed",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT",
@@ -95,7 +98,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "Dragon may terminate this agreement without cause by giving sixty (60) days written notice to MMI."
     },
     {
       "contract": "DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT",
@@ -103,7 +107,8 @@
       "gold_present": false,
       "status": "ABSENT",
       "outcome": "correct_absent",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT",
@@ -111,7 +116,8 @@
       "gold_present": false,
       "status": "ABSENT",
       "outcome": "correct_absent",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT",
@@ -119,7 +125,8 @@
       "gold_present": false,
       "status": "ABSENT",
       "outcome": "correct_absent",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT",
@@ -127,7 +134,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "MMI shall not be liable for indirect or consequential damages unless caused by intention or gross negligence."
     },
     {
       "contract": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT",
@@ -135,7 +143,8 @@
       "gold_present": true,
       "status": "NOT_ANSWERED",
       "outcome": "withheld",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT",
@@ -143,7 +152,8 @@
       "gold_present": false,
       "status": "NOT_ANSWERED",
       "outcome": "withheld",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT",
@@ -151,7 +161,8 @@
       "gold_present": true,
       "status": "NOT_ANSWERED",
       "outcome": "withheld",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT",
@@ -159,7 +170,8 @@
       "gold_present": false,
       "status": "NOT_ANSWERED",
       "outcome": "withheld",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT",
@@ -167,7 +179,8 @@
       "gold_present": false,
       "status": "NOT_ANSWERED",
       "outcome": "withheld",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT",
@@ -175,7 +188,8 @@
       "gold_present": false,
       "status": "NOT_ANSWERED",
       "outcome": "withheld",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT",
@@ -183,7 +197,8 @@
       "gold_present": true,
       "status": "NOT_ANSWERED",
       "outcome": "withheld",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT",
@@ -191,7 +206,8 @@
       "gold_present": true,
       "status": "NOT_ANSWERED",
       "outcome": "withheld",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agreement2",
@@ -199,7 +215,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "This Agreement and the license granted herein shall remain effective until terminated."
     },
     {
       "contract": "ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agreement2",
@@ -207,7 +224,8 @@
       "gold_present": false,
       "status": "ABSENT",
       "outcome": "correct_absent",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agreement2",
@@ -215,7 +233,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "The Warranty and the Software License shall be governed by and construed in accordance with the laws of the State of California, without reference to principles of conflict of laws."
     },
     {
       "contract": "ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agreement2",
@@ -223,7 +242,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "Customer may terminate this Agreement and the license at any time by destroying all copies of Software including any Documentation."
     },
     {
       "contract": "ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agreement2",
@@ -231,7 +251,8 @@
       "gold_present": false,
       "status": "ABSENT",
       "outcome": "correct_absent",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agreement2",
@@ -239,7 +260,8 @@
       "gold_present": false,
       "status": "ABSENT",
       "outcome": "correct_absent",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agreement2",
@@ -247,7 +269,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "Customer grants to Cisco and its independent accountants the right to examine Customer's books, records and accounts during Customer's normal business hours to verify compliance with this Agreement."
     },
     {
       "contract": "ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agreement2",
@@ -255,7 +278,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "In no event shall Cisco's or its suppliers' or licensors' liability to Customer, whether in contract, tort (including negligence), or otherwise, exceed the price paid by Customer for the Software that gave rise to the claim or if the Software is part of another Product, the price paid for such other Product."
     },
     {
       "contract": "ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT",
@@ -263,7 +287,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "This Agreement shall become effective on the date of its execution and shall remain in force for three years (the \"Initial Term\")."
     },
     {
       "contract": "ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT",
@@ -271,7 +296,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "Thereafter, the Agreement shall be automatically renewed for additional two year periods (each a \"Renewal Term\", the Initial Term and all Renewal Terms, the \"Term\") unless either Party notifies the other Party of its intention not to renew in writing at least three calendar months before the expiration of the then current Term."
     },
     {
       "contract": "ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT",
@@ -279,7 +305,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "The laws of the Federal Republic of Germany shall apply to the Agreement and any legal relations thereof, especially any purchase order, between Cremer and Ultragenyx shall be governed by that law."
     },
     {
       "contract": "ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT",
@@ -287,7 +314,8 @@
       "gold_present": false,
       "status": "ABSENT",
       "outcome": "correct_absent",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT",
@@ -295,7 +323,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "The prices payable by Ultragenyx to Cremer for the Product (the \"Price\") shall be agreed [***] every contract year; provided, that the Price may not increase more than the [***] for such period or [***]%, whichever is higher."
     },
     {
       "contract": "ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT",
@@ -303,7 +332,8 @@
       "gold_present": false,
       "status": "ABSENT",
       "outcome": "correct_absent",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT",
@@ -311,7 +341,8 @@
       "gold_present": false,
       "status": "ABSENT",
       "outcome": "correct_absent",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT",
@@ -319,7 +350,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "Cremer's liability arising from this Agreement is limited to intentional misconduct or gross negligence."
     },
     {
       "contract": "LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT",
@@ -327,7 +359,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "The initial term of this Agreement shall be three (3) calendar years from the Agreement date."
     },
     {
       "contract": "LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT",
@@ -335,7 +368,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "After the initial term, unless terminated, this Agreement will automatically renew for periods of one (1) calendar year each."
     },
     {
       "contract": "LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT",
@@ -343,7 +377,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "This Agreement shall be governed by and interpreted in accordance with the laws of the State of New York, USA without regard to conflict of laws principles."
     },
     {
       "contract": "LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT",
@@ -351,7 +386,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "Either party may terminate this agreement by providing Ninety days Written Notice."
     },
     {
       "contract": "LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT",
@@ -359,7 +395,8 @@
       "gold_present": false,
       "status": "ABSENT",
       "outcome": "correct_absent",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT",
@@ -367,7 +404,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "The Distributor agrees to purchase from Lucid minimum agreed quantity of product in the first, second and third years of the Agreement, excluding demonstration product."
     },
     {
       "contract": "LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT",
@@ -375,7 +413,8 @@
       "gold_present": false,
       "status": "ABSENT",
       "outcome": "correct_absent",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT",
@@ -383,7 +422,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "In no event will the aggregate liability incurred by Lucid in any action or proceeding exceed the total amount actually paid to Lucid by Distributor for the purchase of the products that actually caused the damage or loss."
     },
     {
       "contract": "FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT",
@@ -391,7 +431,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "The \"Term\" shall begin on the date hereof and shall expire December 31, 2023, subject to early termination pursuant to the terms of Section 19."
     },
     {
       "contract": "FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT",
@@ -399,7 +440,8 @@
       "gold_present": false,
       "status": "PRESENT",
       "outcome": "false_claim",
-      "located": false
+      "located": false,
+      "quote": "Flotek, may, by written notice given to FCC on or before September 30, 2023, elect for the Term to be extended to December 31, 2024."
     },
     {
       "contract": "FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT",
@@ -407,7 +449,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "This Agreement shall be governed by and construed in accordance with the laws of the state of Delaware."
     },
     {
       "contract": "FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT",
@@ -415,7 +458,8 @@
       "gold_present": false,
       "status": "ABSENT",
       "outcome": "correct_absent",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT",
@@ -423,7 +467,8 @@
       "gold_present": false,
       "status": "ABSENT",
       "outcome": "correct_absent",
-      "located": false
+      "located": false,
+      "quote": null
     },
     {
       "contract": "FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT",
@@ -431,7 +476,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "\"Minimum Quantity\" means [***] pounds of Terpene Product per Year, prorated for any partial Year included in the Term."
     },
     {
       "contract": "FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT",
@@ -439,7 +485,8 @@
       "gold_present": true,
       "status": "PRESENT",
       "outcome": "found",
-      "located": true
+      "located": true,
+      "quote": "Flotek shall have the right at any time to (i) inspect the facility of FCC in Winter Haven, Florida (the \"Facility\") and any other facility of FCC involved in the production of the Terpene Product, and (ii) audit the books and records of FCC."
     },
     {
       "contract": "FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT",
@@ -447,7 +494,8 @@
       "gold_present": false,
       "status": "ABSENT",
       "outcome": "correct_absent",
-      "located": false
+      "located": false,
+      "quote": null
     }
   ]
 }

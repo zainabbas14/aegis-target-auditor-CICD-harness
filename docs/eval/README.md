@@ -6,9 +6,15 @@ named after the model that was requested. A report records the endpoint, the mod
 
 | Model | Invoices auto-processed | Contracts | Silently wrong | Report |
 |---|---|---|---|---|
-| `nvidia/nemotron-3.5-super-vl:free` | 8/8 | 3/3 | 0 | [md](nvidia-nemotron-3.5-super-vl-free.md) · [json](nvidia-nemotron-3.5-super-vl-free.json) |
+| `nvidia/nemotron-3.5-super-vl:free` (re-run with S09) | 9/9 | 3/3 | 0 | [md](nvidia-nemotron-3.5-super-vl-free.md) · [json](nvidia-nemotron-3.5-super-vl-free.json) |
 | `dots-studio/dots-3-note-preview:free` | 8/8 | 3/3 | 0 | [md](dots-studio-dots-3-note-preview-free.md) · [json](dots-studio-dots-3-note-preview-free.json) |
 | `liquid/lfm-3-1.7b:free` | 4/8 | 3/3 | 0 | [md](liquid-lfm-3-1.7b-free.md) · [json](liquid-lfm-3-1.7b-free.json) |
+
+Real contracts (CUAD, `python -m evals.cuad`):
+
+| Model | Labels | Found | False claims | Missed | Withheld | Report |
+|---|---|---|---|---|---|---|
+| `nvidia/nemotron-3.5-super-vl:free` | 48 | 23 | 1 | 1 | 8 | [md](cuad-nvidia-nemotron-3.5-super-vl-free.md) · [json](cuad-nvidia-nemotron-3.5-super-vl-free.json) |
 
 Run in November 2026 through OpenRouter's free tier, `pdf_mode=text`, `json_mode=json_schema`.
 Findings and caveats are in the main [README](../../README.md#evaluation-results).
