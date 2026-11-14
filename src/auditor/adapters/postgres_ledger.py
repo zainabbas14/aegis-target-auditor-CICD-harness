@@ -31,7 +31,8 @@ from auditor.domain.models import (
 logger = logging.getLogger(__name__)
 
 _PAYMENT_SELECT: LiteralString = (
-    "SELECT invoice_number, vendor_id, po_number, amount_cents, payment_date, status FROM historical_payments "
+    "SELECT invoice_number, vendor_id, po_number, amount_cents, payment_date, status, external_ref "
+    "FROM historical_payments "
 )
 
 
@@ -43,6 +44,7 @@ def _payment(row: dict[str, Any]) -> PaymentRecord:
         amount=cents_to_money(row["amount_cents"]),
         payment_date=row["payment_date"],
         status=PaymentStatus(row["status"]),
+        external_ref=row["external_ref"],
     )
 
 

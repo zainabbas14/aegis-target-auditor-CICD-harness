@@ -32,7 +32,7 @@ from auditor.domain.models import (
 
 logger = logging.getLogger(__name__)
 
-_PAYMENT_COLS = "invoice_number, vendor_id, po_number, amount_cents, payment_date, status"
+_PAYMENT_COLS = "invoice_number, vendor_id, po_number, amount_cents, payment_date, status, external_ref"
 
 
 def _payment(row: sqlite3.Row) -> PaymentRecord:
@@ -43,6 +43,7 @@ def _payment(row: sqlite3.Row) -> PaymentRecord:
         amount=cents_to_money(row["amount_cents"]),
         payment_date=date.fromisoformat(row["payment_date"]),
         status=PaymentStatus(row["status"]),
+        external_ref=row["external_ref"],
     )
 
 

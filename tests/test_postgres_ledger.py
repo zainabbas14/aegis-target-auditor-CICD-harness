@@ -61,7 +61,7 @@ def test_approval_survives_a_restart(pg_dsn: str, built, sqlite_ledger, tmp_path
         return RunService(build_graph(deps, saver), documents), pool, gw
 
     runs, pool, _ = boot()
-    run = runs.start((built / "invoices" / "S02_clean_goods_with_tax.pdf").read_bytes(), "s02.pdf")
+    run = runs.start((built / "invoices" / "S02_clean_goods_with_tax.pdf").read_bytes(), "s02.pdf", actor="clerk")
     assert run.status is RunStatus.AWAITING_APPROVAL
     pool.close()  # "process" dies
 

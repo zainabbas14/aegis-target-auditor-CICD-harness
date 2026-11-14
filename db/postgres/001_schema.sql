@@ -48,6 +48,9 @@ CREATE TABLE historical_payments (
     amount_cents    BIGINT NOT NULL CHECK (amount_cents > 0),
     payment_date    DATE NOT NULL,
     status          TEXT NOT NULL CHECK (status IN ('PAID', 'PENDING', 'VOID')),
+    -- Set only on rows the auditor writes back: "run:<run id>" and the gateway's reference.
+    external_ref    TEXT UNIQUE,
+    payment_ref     TEXT,
     UNIQUE (vendor_id, invoice_number)
 );
 

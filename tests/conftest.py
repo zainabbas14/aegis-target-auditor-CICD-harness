@@ -72,3 +72,31 @@ def ledger(request: pytest.FixtureRequest, sqlite_ledger: SqliteLedger) -> Itera
     led = PostgresLedger(request.getfixturevalue("pg_dsn"))
     yield led
     led.close()
+
+
+@pytest.fixture
+def fresh_pg_dsn(built: Path) -> Iterator[str]:
+    """A brand-new database per test, for tests that WRITE (payments, audit log)."""
+    admin = os.environ.get(PG_ADMIN_ENV)
+    if not admin:
+        pytest.skip(f"{PG_ADMIN_ENV} not set")
+    import psycopg  # noqa: PLC0415
+    from psycopg import sql  # noqa: PLC0415
+    from psycopg.conninfo import make_conninfo  # noqa: PLC0415
+
+    name = f"auditor_w_{uuid.uuid4().hex[:8]}"
+    with psycopg.connect(admin, autocommit=True) as conn:
+        conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
+    dsn = make_conninfo(admin, dbname=name)
+    try:
+        with psycopg.connect(dsn, autocommit=True) as conn:
+            for script in (
+                REPO / "db/postgres/001_schema.sql",
+                built / "postgres/002_seed.sql",
+                REPO / "db/postgres/005_audit_log.sql",
+            ):
+                conn.execute(script.read_text())
+        yield dsn
+    finally:
+        with psycopg.connect(admin, autocommit=True) as conn:
+            conn.execute(sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(name)))

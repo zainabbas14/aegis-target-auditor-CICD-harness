@@ -9,8 +9,10 @@ from typing import Any
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import InMemorySaver
 
+from auditor.audit_log import AuditLog, InMemoryAuditLog
 from auditor.config import Settings
 from auditor.llm.ports import StructuredLLM
+from auditor.ports import PaymentLedgerWriter
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,24 @@ def build_llm(settings: Settings, model: str) -> StructuredLLM | None:
         timeout_s=settings.llm_timeout_s,
         max_retries=settings.llm_max_retries,
     )
+
+
+def build_audit_log(settings: Settings) -> AuditLog:
+    if settings.checkpointer == "postgres" and settings.state_database_url is not None:
+        from auditor.audit_log import PostgresAuditLog  # noqa: PLC0415
+
+        return PostgresAuditLog(settings.state_database_url.get_secret_value())
+    logger.warning("In-memory audit log: entries are lost on restart")
+    return InMemoryAuditLog()
+
+
+def build_payment_ledger(settings: Settings) -> PaymentLedgerWriter | None:
+    if settings.payments_database_url is None:
+        logger.warning("No payments database configured: payments will NOT be recorded in the ledger")
+        return None
+    from auditor.adapters.postgres_payments import PostgresPaymentLedger  # noqa: PLC0415
+
+    return PostgresPaymentLedger(settings.payments_database_url.get_secret_value())
 
 
 def build_checkpointer(settings: Settings) -> tuple[BaseCheckpointSaver[Any], Callable[[], None]]:

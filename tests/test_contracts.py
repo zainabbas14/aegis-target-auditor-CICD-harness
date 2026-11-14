@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from auditor.agents.contracts import ContractReader, DriftCode, read_and_reconcile
 from auditor.api.app import create_app
@@ -16,6 +17,7 @@ from auditor.domain.models import RateCardEntry, VendorRecord
 from auditor.llm.ports import LLMUnavailableError
 from auditor.ports import LedgerReader
 from tests.fakes import FakeLLM
+from tests.identities import API_KEYS, auth
 from tests.mock_data.fixtures import CONTRACTS
 
 REFS = [c.contract_ref for c in CONTRACTS]
@@ -124,8 +126,11 @@ def test_llm_failure_degrades_to_unreadable(built: Path, ledger: LedgerReader) -
 
 
 def test_reconcile_endpoint(built: Path, sqlite_ledger: LedgerReader, tmp_path: Path) -> None:
-    settings = Settings(env="test", log_format="console", documents_dir=tmp_path, _env_file=None)
-    with TestClient(create_app(settings, ledger=sqlite_ledger, llm=FakeLLM(built))) as client:
+    settings = Settings(
+        env="test", log_format="console", documents_dir=tmp_path, api_keys=SecretStr(API_KEYS), _env_file=None
+    )
+    app = create_app(settings, ledger=sqlite_ledger, llm=FakeLLM(built))
+    with TestClient(app, headers=auth("ana")) as client:
         ok = client.post(
             "/v1/contracts/reconcile",
             files={"file": ("c.pdf", _pdf(built, "SUPPLY-MIS-2024-007"), "application/pdf")},

@@ -73,6 +73,14 @@ jobs:
           sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 16)/" .env
           sed -i "s/^AUDITOR_DB_RO_PASSWORD=.*/AUDITOR_DB_RO_PASSWORD=$(openssl rand -hex 16)/" .env
           sed -i "s/^AUDITOR_STATE_DB_PASSWORD=.*/AUDITOR_STATE_DB_PASSWORD=$(openssl rand -hex 16)/" .env
+          sed -i "s/^AUDITOR_PAYMENTS_DB_PASSWORD=.*/AUDITOR_PAYMENTS_DB_PASSWORD=$(openssl rand -hex 16)/" .env
+          {
+            echo "CLERK_KEY=$(openssl rand -hex 24)"; echo "APPROVER_KEY=$(openssl rand -hex 24)"
+            echo "AUDITOR_KEY=$(openssl rand -hex 24)"
+          } > keys.env
+          source keys.env
+          sed -i "s/^AUDITOR_API_KEYS=.*/AUDITOR_API_KEYS=clerk.bea:clerk:$CLERK_KEY,ap.manager:approver:$APPROVER_KEY,ian:auditor:$AUDITOR_KEY/" .env
+          cat keys.env >> "$GITHUB_ENV"
 
       - name: Start stack
         run: docker compose up -d --build --wait --wait-timeout 180
@@ -80,42 +88,80 @@ jobs:
       - name: Readiness
         run: curl -fsS http://127.0.0.1:8000/readyz
 
+      - name: Unauthenticated requests are refused
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8000/v1/audits \
+                 -H 'content-type: application/json' -d @tests/mock_data/generated/requests/S01_clean_services.json)
+          [ "$code" = "401" ]
+
       - name: Golden scenarios over HTTP
         run: |
           for f in tests/mock_data/generated/requests/*.json; do
             id=$(basename "$f" .json)
             want=$(jq -r --arg id "$id" '.scenarios[] | select(.scenario_id==$id) | .expected_verdict' \
                    tests/mock_data/generated/expected_outcomes.json)
-            got=$(curl -fsS -X POST http://127.0.0.1:8000/v1/audits \
+            got=$(curl -fsS -X POST http://127.0.0.1:8000/v1/audits -H "Authorization: Bearer $CLERK_KEY" \
                    -H 'content-type: application/json' -d @"$f" | jq -r .verdict)
             echo "$id: want=$want got=$got"
             [ "$want" = "$got" ]
           done
 
-      - name: Agent workflow over HTTP (no LLM key -> degraded path -> manual entry -> HITL -> paid)
+      - name: Agent workflow over HTTP (no LLM key -> manual entry -> HITL -> paid -> written back)
         run: |
           G=tests/mock_data/generated
-          run=$(curl -fsS -F "file=@$G/invoices/S01_clean_services.pdf;type=application/pdf" http://127.0.0.1:8000/v1/runs)
+          API=http://127.0.0.1:8000
+          C=(-H "Authorization: Bearer $CLERK_KEY"); A=(-H "Authorization: Bearer $APPROVER_KEY")
+          J=(-H 'content-type: application/json')
+
+          run=$(curl -fsS "${C[@]}" -F "file=@$G/invoices/S01_clean_services.pdf;type=application/pdf" $API/v1/runs)
           echo "$run" | jq .
           [ "$(echo "$run" | jq -r .status)" = "NEEDS_MANUAL_ENTRY" ]
           id=$(echo "$run" | jq -r .run_id)
 
-          jq '{entered_by: "clerk.bea", invoice: .}' "$G/requests/S01_clean_services.json" > entry.json
-          [ "$(curl -fsS -X POST http://127.0.0.1:8000/v1/runs/$id/extraction \
-                -H 'content-type: application/json' -d @entry.json | jq -r .status)" = "AWAITING_APPROVAL" ]
+          jq '{invoice: .}' "$G/requests/S01_clean_services.json" > entry.json
+          [ "$(curl -fsS "${C[@]}" "${J[@]}" -X POST $API/v1/runs/$id/extraction -d @entry.json \
+                | jq -r .status)" = "AWAITING_APPROVAL" ]
 
           # Approval must survive an API restart (Postgres checkpointer).
           docker compose restart api && docker compose up -d --wait api
-          [ "$(curl -fsS http://127.0.0.1:8000/v1/runs/$id | jq -r .status)" = "AWAITING_APPROVAL" ]
+          [ "$(curl -fsS "${C[@]}" $API/v1/runs/$id | jq -r .status)" = "AWAITING_APPROVAL" ]
 
-          # Four-eyes: the keyer may not approve.
-          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8000/v1/runs/$id/decision \
-                 -H 'content-type: application/json' -d '{"approved": true, "approver": "clerk.bea"}')
-          [ "$code" = "403" ]
+          # A clerk cannot approve (role), and identity cannot be supplied in the body.
+          [ "$(curl -s -o /dev/null -w '%{http_code}' "${C[@]}" "${J[@]}" -X POST $API/v1/runs/$id/decision \
+                -d '{"approved": true}')" = "403" ]
+          [ "$(curl -s -o /dev/null -w '%{http_code}' "${A[@]}" "${J[@]}" -X POST $API/v1/runs/$id/decision \
+                -d '{"approved": true, "approver": "someone.else"}')" = "422" ]
 
-          [ "$(curl -fsS -X POST http://127.0.0.1:8000/v1/runs/$id/decision \
-                -H 'content-type: application/json' -d '{"approved": true, "approver": "ap.manager"}' \
-                | jq -r .status)" = "PAID" ]
+          paid=$(curl -fsS "${A[@]}" "${J[@]}" -X POST $API/v1/runs/$id/decision -d '{"approved": true}')
+          [ "$(echo "$paid" | jq -r .status)" = "PAID" ]
+          [ "$(echo "$paid" | jq -r .decision.approver)" = "ap.manager" ]
+
+          # Written back: the same invoice in a NEW run is now a duplicate.
+          again=$(curl -fsS "${C[@]}" -F "file=@$G/invoices/S01_clean_services.pdf;type=application/pdf" $API/v1/runs)
+          id2=$(echo "$again" | jq -r .run_id)
+          [ "$(curl -fsS "${C[@]}" "${J[@]}" -X POST $API/v1/runs/$id2/extraction -d @entry.json \
+                | jq -r '.findings[].code')" = "DUPLICATE_INVOICE" ]
+
+      - name: Audit log is complete, chained, and append-only
+        run: |
+          API=http://127.0.0.1:8000
+          curl -fsS -H "Authorization: Bearer $AUDITOR_KEY" "$API/v1/audit-log" | jq -c '.[] | [.seq, .actor, .action, .outcome.status]'
+          [ "$(curl -fsS -H "Authorization: Bearer $AUDITOR_KEY" $API/v1/audit-log/verify | jq -r .valid)" = "true" ]
+          source .env
+          for stmt in "UPDATE audit.audit_log SET actor = 'x'" "DELETE FROM audit.audit_log"; do
+            if docker compose exec -T -e PGPASSWORD="$AUDITOR_STATE_DB_PASSWORD" postgres \
+                 psql -h 127.0.0.1 -U auditor_state -d erp -c "$stmt"; then
+              echo "::error::auditor_state could run: $stmt"; exit 1
+            fi
+          done
+
+      - name: Payments role can record payments but not erase them
+        run: |
+          source .env
+          if docker compose exec -T -e PGPASSWORD="$AUDITOR_PAYMENTS_DB_PASSWORD" postgres \
+               psql -h 127.0.0.1 -U auditor_payments -d erp -c "DELETE FROM historical_payments"; then
+            echo "::error::auditor_payments could delete payments"; exit 1
+          fi
 
       - name: App role cannot write
         run: |

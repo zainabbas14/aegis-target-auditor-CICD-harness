@@ -36,6 +36,7 @@ import logging
 import operator
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Annotated, Any, Literal, TypedDict
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -51,7 +52,7 @@ from auditor.documents.store import DocumentStore
 from auditor.domain.enums import RunStatus, Verdict
 from auditor.domain.models import AuditResult, ExtractedInvoice, LedgerFacts
 from auditor.payments import PaymentGateway
-from auditor.ports import LedgerReader
+from auditor.ports import LedgerReader, PaymentConflictError, PaymentLedgerWriter
 from auditor.rules.engine import RuleConfig, evaluate, gather_facts
 
 logger = logging.getLogger(__name__)
@@ -121,6 +122,8 @@ class WorkflowDeps:
     payments: PaymentGateway
     rule_config: RuleConfig
     mapper: LineItemMapper | None = None
+    # Without a writer, payments are not recorded in the ledger (dev only; prod config requires one).
+    payment_ledger: PaymentLedgerWriter | None = None
 
 
 class _Nodes:
@@ -225,19 +228,48 @@ class _Nodes:
         return {"status": RunStatus.REJECTED.value}
 
     def execute_payment(self, state: AuditState) -> AuditState:
+        """Re-audit on fresh facts -> reserve in the ledger -> pay -> mark paid.
+
+        Every step is safe to re-execute after a crash: the run's own reservation is
+        excluded from the re-audit, reserve() is idempotent per run, and the gateway is
+        idempotent on the same key.
+        """
         invoice = effective_invoice(state)
-        fresh_facts = gather_facts(invoice, self.d.ledger, self.d.rule_config)
+        own_ref = f"run:{state['run_id']}"
+        fresh_facts = _without_own_reservation(gather_facts(invoice, self.d.ledger, self.d.rule_config), own_ref)
         recheck = evaluate(invoice, fresh_facts)
         if recheck.verdict is not Verdict.APPROVE_PENDING_HUMAN or fresh_facts.vendor is None:
             logger.warning("Pre-payment re-audit failed; payment withheld", extra={"verdict": recheck.verdict.value})
             return {"status": RunStatus.BLOCKED_AT_PAYMENT.value, "payment_recheck": recheck.model_dump(mode="json")}
+        vendor = fresh_facts.vendor
+        if self.d.payment_ledger is not None:
+            try:
+                self.d.payment_ledger.reserve(
+                    external_ref=own_ref,
+                    vendor_id=vendor.vendor_id,
+                    invoice_number=invoice.invoice_number,
+                    po_number=invoice.po_number,
+                    amount=invoice.total,
+                    payment_date=datetime.now(UTC).date(),
+                )
+            except PaymentConflictError as exc:
+                # Lost a race to another run between re-audit and reservation.
+                logger.warning("Ledger reservation refused; payment withheld", extra={"detail": str(exc)})
+                return {
+                    "status": RunStatus.BLOCKED_AT_PAYMENT.value,
+                    "payment_recheck": {"verdict": "BLOCK", "reason": "ledger_conflict", "detail": str(exc)},
+                }
+        else:
+            logger.warning("No payment ledger writer configured: payment will not be recorded in the ledger")
         receipt = self.d.payments.execute(
-            idempotency_key=f"run:{state['run_id']}",
-            vendor_id=fresh_facts.vendor.vendor_id,
+            idempotency_key=own_ref,
+            vendor_id=vendor.vendor_id,
             amount=invoice.total,
             currency=invoice.currency,
-            account=fresh_facts.vendor.remit_account,  # the account ON FILE, never the invoice's
+            account=vendor.remit_account,  # the account ON FILE, never the invoice's
         )
+        if self.d.payment_ledger is not None:
+            self.d.payment_ledger.mark_paid(external_ref=own_ref, payment_ref=receipt.payment_id)
         return {"status": RunStatus.PAID.value, "payment": receipt.model_dump(mode="json")}
 
     # ---- routers -------------------------------------------------------------
@@ -272,6 +304,24 @@ def effective_invoice(state: AuditState) -> ExtractedInvoice:
         for i, ln in enumerate(invoice.line_items, start=1)
     )
     return invoice.model_copy(update={"line_items": lines})
+
+
+def _without_own_reservation(facts: LedgerFacts, own_ref: str) -> LedgerFacts:
+    """Facts as they'd be had this run never reserved: its own PENDING/PAID row is not a duplicate of itself,
+    and its amount must not count against its own PO budget on a crash-retry."""
+    own = [p for p in facts.same_number_payments if p.external_ref == own_ref]
+    if not own:
+        return facts
+    po = facts.purchase_order
+    if po is not None:
+        po = po.model_copy(update={"consumed": po.consumed - sum((p.amount for p in own), Decimal("0"))})
+    return facts.model_copy(
+        update={
+            "purchase_order": po,
+            "same_number_payments": tuple(p for p in facts.same_number_payments if p.external_ref != own_ref),
+            "same_amount_payments": tuple(p for p in facts.same_amount_payments if p.external_ref != own_ref),
+        }
+    )
 
 
 def _pending_lines(state: AuditState) -> list[int]:

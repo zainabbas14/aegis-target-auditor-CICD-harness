@@ -13,6 +13,8 @@ from typing import Literal, Self
 from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from auditor.auth import parse_api_keys
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="AUDITOR_", env_file=".env", extra="ignore", frozen=True)
@@ -51,11 +53,24 @@ class Settings(BaseSettings):
     checkpointer: Literal["memory", "postgres"] = "memory"
     state_database_url: SecretStr | None = None
 
+    # --- Payments are written back to the ledger as a separate, insert-only role.
+    payments_database_url: SecretStr | None = None
+
+    # --- Authentication: "id:role[+role]:key,..." (see auditor.auth). Unset = every protected call is refused.
+    api_keys: SecretStr | None = None
+
     documents_dir: Path = Path(".data/documents")
     max_upload_bytes: int = Field(default=10 * 1024 * 1024, gt=0)
 
     @field_validator(
-        "anthropic_api_key", "llm_api_key", "llm_base_url", "database_url", "state_database_url", mode="before"
+        "anthropic_api_key",
+        "llm_api_key",
+        "llm_base_url",
+        "database_url",
+        "state_database_url",
+        "payments_database_url",
+        "api_keys",
+        mode="before",
     )
     @classmethod
     def _blank_is_unset(cls, v: object) -> object:
@@ -74,6 +89,14 @@ class Settings(BaseSettings):
             raise ValueError("AUDITOR_LLM_BASE_URL is required when AUDITOR_LLM_PROVIDER=openai_compatible")
         if self.checkpointer == "postgres" and self.state_database_url is None:
             raise ValueError("AUDITOR_STATE_DATABASE_URL is required when AUDITOR_CHECKPOINTER=postgres")
+        if self.env == "prod" and self.payments_database_url is None:
+            raise ValueError(
+                "AUDITOR_PAYMENTS_DATABASE_URL is required when AUDITOR_ENV=prod (payments must be recorded)"
+            )
+        if self.env == "prod" and self.api_keys is None:
+            raise ValueError("AUDITOR_API_KEYS is required when AUDITOR_ENV=prod")
+        if self.api_keys is not None:
+            parse_api_keys(self.api_keys.get_secret_value(), production=self.env == "prod")  # fail at startup
         if self.env == "prod" and self.checkpointer == "memory":
             raise ValueError("In-memory checkpoints are not permitted when AUDITOR_ENV=prod (approvals would be lost)")
         return self

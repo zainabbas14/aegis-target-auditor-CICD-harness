@@ -8,18 +8,26 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from auditor.api.app import REQUEST_ID_HEADER, create_app
 from auditor.config import Settings
 from auditor.ports import LedgerReader
+from tests.identities import API_KEYS, auth
 from tests.mock_data.fixtures import SCENARIOS
 
-SETTINGS = Settings(env="test", log_format="console", documents_dir=Path(tempfile.mkdtemp()), _env_file=None)
+SETTINGS = Settings(
+    env="test",
+    log_format="console",
+    documents_dir=Path(tempfile.mkdtemp()),
+    api_keys=SecretStr(API_KEYS),
+    _env_file=None,
+)
 
 
 @pytest.fixture
 def client(ledger: LedgerReader) -> Iterator[TestClient]:
-    with TestClient(create_app(SETTINGS, ledger=ledger, llm=None)) as c:
+    with TestClient(create_app(SETTINGS, ledger=ledger, llm=None), headers=auth("admin")) as c:
         yield c
 
 
@@ -81,7 +89,8 @@ def test_readyz_503_when_ledger_down() -> None:
 
 def test_internal_errors_do_not_leak(built: Path, caplog: pytest.LogCaptureFixture) -> None:
     body = json.loads((built / "requests" / "S01_clean_services.json").read_text())
-    with TestClient(create_app(SETTINGS, ledger=_DownLedger(), llm=None), raise_server_exceptions=False) as c:  # type: ignore[arg-type]
+    app = create_app(SETTINGS, ledger=_DownLedger(), llm=None)  # type: ignore[arg-type]
+    with TestClient(app, raise_server_exceptions=False, headers=auth("admin")) as c:
         resp = c.post("/v1/audits", json=body)
     assert resp.status_code == 500
     assert "db down" not in resp.text

@@ -13,11 +13,14 @@ services:
       # Consumed by the role scripts on first init only.
       AUDITOR_DB_RO_PASSWORD: ${AUDITOR_DB_RO_PASSWORD:?set AUDITOR_DB_RO_PASSWORD in .env}
       AUDITOR_STATE_DB_PASSWORD: ${AUDITOR_STATE_DB_PASSWORD:?set AUDITOR_STATE_DB_PASSWORD in .env}
+      AUDITOR_PAYMENTS_DB_PASSWORD: ${AUDITOR_PAYMENTS_DB_PASSWORD:?set AUDITOR_PAYMENTS_DB_PASSWORD in .env}
     volumes:
       - ./db/postgres/001_schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
       - ./tests/mock_data/generated/postgres/002_seed.sql:/docker-entrypoint-initdb.d/002_seed.sql:ro
       - ./db/postgres/003_readonly_role.sh:/docker-entrypoint-initdb.d/003_readonly_role.sh:ro
       - ./db/postgres/004_state_role.sh:/docker-entrypoint-initdb.d/004_state_role.sh:ro
+      - ./db/postgres/005_audit_log.sql:/docker-entrypoint-initdb.d/005_audit_log.sql:ro
+      - ./db/postgres/006_payments_and_audit_roles.sh:/docker-entrypoint-initdb.d/006_payments_and_audit_roles.sh:ro
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       # -h 127.0.0.1 matters: during init scripts the server listens on the
@@ -34,10 +37,12 @@ services:
     environment:
       AUDITOR_ENV: ${AUDITOR_ENV:-dev}
       AUDITOR_LEDGER_BACKEND: postgres
-      # Two least-privilege roles; the admin password never reaches this container.
+      # Three least-privilege roles; the admin password never reaches this container.
       AUDITOR_DATABASE_URL: postgresql://auditor_ro:${AUDITOR_DB_RO_PASSWORD}@postgres:5432/erp
       AUDITOR_CHECKPOINTER: postgres
       AUDITOR_STATE_DATABASE_URL: postgresql://auditor_state:${AUDITOR_STATE_DB_PASSWORD}@postgres:5432/erp
+      AUDITOR_PAYMENTS_DATABASE_URL: postgresql://auditor_payments:${AUDITOR_PAYMENTS_DB_PASSWORD}@postgres:5432/erp
+      AUDITOR_API_KEYS: ${AUDITOR_API_KEYS:?set AUDITOR_API_KEYS in .env}
       AUDITOR_LOG_LEVEL: ${AUDITOR_LOG_LEVEL:-INFO}
       # LLM: optional. Without credentials, parsing degrades to human data entry and
       # explanations to templates. See .env.example for every option.

@@ -53,6 +53,9 @@ CREATE TABLE historical_payments (
     amount_cents    INTEGER NOT NULL CHECK (amount_cents > 0),
     payment_date    TEXT NOT NULL,
     status          TEXT NOT NULL CHECK (status IN ('PAID', 'PENDING', 'VOID')),
+    -- Set only on rows this system writes back: "run:<run id>" and the gateway's reference.
+    external_ref    TEXT UNIQUE,
+    payment_ref     TEXT,
     -- An invoice number is unique per vendor, not globally.
     UNIQUE (vendor_id, invoice_number)
 );

@@ -13,6 +13,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 from pydantic import BaseModel, ConfigDict
 
+from auditor.audit_log import AuditLog, InMemoryAuditLog
 from auditor.documents.store import DocumentStore
 from auditor.domain.enums import RunStatus
 from auditor.workflow.graph import ApprovalDecision, ManualEntry, MappingReview
@@ -93,10 +94,24 @@ def _view(values: dict[str, Any]) -> RunView:
     )
 
 
+def _outcome(view: RunView) -> dict[str, Any]:
+    """What the audit log records as the result of an action."""
+    return {
+        "status": view.status.value,
+        "verdict": view.verdict,
+        "findings": sorted({f["code"] for f in view.findings}),
+        "payment_id": (view.payment or {}).get("payment_id"),
+        "amount": (view.payment or {}).get("amount"),
+    }
+
+
 class RunService:
-    def __init__(self, graph: CompiledStateGraph[Any], documents: DocumentStore) -> None:
+    def __init__(
+        self, graph: CompiledStateGraph[Any], documents: DocumentStore, audit_log: AuditLog | None = None
+    ) -> None:
         self._graph = graph
         self._documents = documents
+        self.audit_log: AuditLog = audit_log or InMemoryAuditLog()
         # Serialises decisions per run within this process. A multi-replica
         # deployment would need a DB-level lock (e.g. pg_advisory_xact_lock).
         self._locks: defaultdict[str, threading.Lock] = defaultdict(threading.Lock)
@@ -105,7 +120,7 @@ class RunService:
     def _config(run_id: str) -> RunnableConfig:
         return {"configurable": {"thread_id": run_id}}
 
-    def start(self, pdf: bytes, filename: str) -> RunView:
+    def start(self, pdf: bytes, filename: str, *, actor: str) -> RunView:
         sha = self._documents.put(pdf)
         run_id = uuid.uuid4().hex
         logger.info("Run started", extra={"run_id": run_id, "sha256": sha})
@@ -119,7 +134,15 @@ class RunService:
             },
             self._config(run_id),
         )
-        return self.get(run_id)
+        view = self.get(run_id)
+        self.audit_log.append(
+            run_id=run_id,
+            actor=actor,
+            action="RUN_STARTED",
+            details={"filename": filename, "document_sha256": sha},
+            outcome=_outcome(view),
+        )
+        return view
 
     def get(self, run_id: str) -> RunView:
         snapshot = self._graph.get_state(self._config(run_id))
@@ -127,7 +150,17 @@ class RunService:
             raise RunNotFoundError(run_id)
         return _view(snapshot.values)
 
-    def _resume(self, run_id: str, node: str, payload: dict[str, Any], *, check: Any = None) -> RunView:
+    def _resume(
+        self,
+        run_id: str,
+        node: str,
+        payload: dict[str, Any],
+        *,
+        actor: str,
+        action: str,
+        details: dict[str, Any],
+        check: Any = None,
+    ) -> RunView:
         with self._locks[run_id]:
             snapshot = self._graph.get_state(self._config(run_id))
             if not snapshot.values:
@@ -141,12 +174,31 @@ class RunService:
                 }
                 raise errors[node](status)
             if check is not None:
-                check(snapshot.values)
+                try:
+                    check(snapshot.values)
+                except (SegregationOfDutiesError, InvalidMappingReviewError) as exc:
+                    self.audit_log.append(
+                        run_id=run_id,
+                        actor=actor,
+                        action=f"{action}_REFUSED",
+                        details={**details, "reason": str(exc)},
+                        outcome={"status": snapshot.values.get("status")},
+                    )
+                    raise
             self._graph.invoke(Command(resume=payload), self._config(run_id))
-        return self.get(run_id)
+            view = self.get(run_id)
+            self.audit_log.append(run_id=run_id, actor=actor, action=action, details=details, outcome=_outcome(view))
+        return view
 
     def submit_extraction(self, run_id: str, entry: ManualEntry) -> RunView:
-        return self._resume(run_id, "await_manual_entry", entry.model_dump(mode="json"))
+        return self._resume(
+            run_id,
+            "await_manual_entry",
+            entry.model_dump(mode="json"),
+            actor=entry.entered_by,
+            action="EXTRACTION_SUBMITTED",
+            details={"invoice_number": entry.invoice.invoice_number, "total": str(entry.invoice.total)},
+        )
 
     def submit_mappings(self, run_id: str, review: MappingReview) -> RunView:
         def validate(values: dict[str, Any]) -> None:
@@ -159,7 +211,15 @@ class RunService:
             if unknown:
                 raise InvalidMappingReviewError(f"not on this contract's rate card: {', '.join(unknown)}")
 
-        return self._resume(run_id, "await_mapping_review", review.model_dump(mode="json"), check=validate)
+        return self._resume(
+            run_id,
+            "await_mapping_review",
+            review.model_dump(mode="json"),
+            actor=review.reviewer,
+            action="MAPPINGS_SUBMITTED",
+            details={"decisions": [d.model_dump(mode="json") for d in review.decisions]},
+            check=validate,
+        )
 
     def decide(self, run_id: str, decision: ApprovalDecision) -> RunView:
         def four_eyes(values: dict[str, Any]) -> None:
@@ -167,4 +227,12 @@ class RunService:
                 if values.get(who) and values[who].casefold() == decision.approver.casefold():
                     raise SegregationOfDutiesError(f"the person who {role} cannot approve it")
 
-        return self._resume(run_id, "await_approval", decision.model_dump(mode="json"), check=four_eyes)
+        return self._resume(
+            run_id,
+            "await_approval",
+            decision.model_dump(mode="json"),
+            actor=decision.approver,
+            action="PAYMENT_APPROVED" if decision.approved else "PAYMENT_REJECTED",
+            details={"comment": decision.comment},
+            check=four_eyes,
+        )

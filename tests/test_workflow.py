@@ -78,7 +78,7 @@ class Harness:
 
     def start(self, scenario_id: str):  # type: ignore[no-untyped-def]
         pdf = (self.built / "invoices" / f"{scenario_id}.pdf").read_bytes()
-        return self.runs.start(pdf, f"{scenario_id}.pdf")
+        return self.runs.start(pdf, f"{scenario_id}.pdf", actor="clerk.bea")
 
 
 @pytest.fixture
@@ -250,7 +250,7 @@ def test_no_llm_configured_still_runs_safely(built: Path, ledger: LedgerReader, 
         rule_config=RuleConfig(),
     )
     runs = RunService(build_graph(deps, InMemorySaver()), documents)
-    run = runs.start((built / "invoices" / "S01_clean_services.pdf").read_bytes(), "x.pdf")
+    run = runs.start((built / "invoices" / "S01_clean_services.pdf").read_bytes(), "x.pdf", actor="clerk.bea")
     assert run.status is RunStatus.NEEDS_MANUAL_ENTRY
     assert run.degradations == [{"step": "parse", "reason": "llm_not_configured"}]
 
@@ -409,3 +409,45 @@ def test_blocked_invoices_skip_mapping_review(harness: Harness) -> None:
     run = harness.start("S03_rate_overcharge")  # also an uncoded layout, but resolvable and blocked
     assert run.status is RunStatus.BLOCKED
     assert harness.llm.mapping_payloads == []
+
+
+# --------------------------------------------------------------------------- #
+# Payment write-back: crash between reserving and paying
+# --------------------------------------------------------------------------- #
+def test_crash_after_reservation_retries_cleanly(built: Path, tmp_path: Path) -> None:
+    """If the process dies after reserving but before paying, the re-run must not treat its own
+    reservation as a duplicate - nor count it against its own PO budget (S06-style tight POs)."""
+    import shutil  # noqa: PLC0415
+
+    from auditor.adapters.sqlite_ledger import SqliteLedger  # noqa: PLC0415
+    from auditor.adapters.sqlite_payments import SqlitePaymentLedger  # noqa: PLC0415
+
+    db = tmp_path / "erp.db"
+    shutil.copy(built / "enterprise_erp.db", db)
+    writer = SqlitePaymentLedger(db)
+    llm, gw, documents = FakeLLM(built), SimulatedPaymentGateway(), DocumentStore(tmp_path / "docs")
+    deps = WorkflowDeps(
+        ledger=SqliteLedger(db),
+        documents=documents,
+        parser=DocumentParser(llm),
+        explainer=Explainer(llm),
+        payments=gw,
+        rule_config=RuleConfig(),
+        payment_ledger=writer,
+    )
+    runs = RunService(build_graph(deps, InMemorySaver()), documents)
+    run = runs.start((built / "invoices" / "S02_clean_goods_with_tax.pdf").read_bytes(), "s02.pdf", actor="bea")
+    # Simulate the crash: the reservation landed, the gateway call never happened.
+    writer.reserve(
+        external_ref=f"run:{run.run_id}",
+        vendor_id="V-1002",
+        invoice_number="MIS-55810",
+        po_number="PO-2026-0422",
+        amount=Decimal("9738.75"),
+        payment_date=date(2026, 11, 14),
+    )
+    done = runs.decide(run.run_id, APPROVE)
+    assert done.status is RunStatus.PAID
+    assert gw.execution_count == 1
+    (row,) = SqliteLedger(db).payments_by_invoice_number("V-1002", "MIS-55810")
+    assert row.status == "PAID"

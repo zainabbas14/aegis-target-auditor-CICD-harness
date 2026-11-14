@@ -120,6 +120,7 @@ class PaymentRecord(Model):
     amount: Money
     payment_date: date
     status: PaymentStatus
+    external_ref: str | None = None  # "run:<id>" when this system wrote the row back
 
 
 class LedgerFacts(Model):

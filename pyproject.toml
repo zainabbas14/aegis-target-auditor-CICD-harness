@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "multi-agent-finance-auditor"
-version = "0.6.0"
+version = "1.0.0"
 description = "Multi-agent AP auditor: invoices vs contracts vs payment history, with HITL approval"
 requires-python = ">=3.12"
 dependencies = [

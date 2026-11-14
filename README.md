@@ -9,10 +9,10 @@ checks it against the **contract** it was billed under and the **payment history
 found, and stops anomalous payments before money moves. Clean invoices pause for a human to approve; nothing is
 ever paid autonomously.
 
-> **Status:** M0–M4 complete - deterministic audit core, read-only ledger, HTTP API, Docker stack, the
-> LangGraph agent workflow with HITL approval and deterministic fallbacks, a contract-reconciliation agent,
-> provider-agnostic LLM access, and a live evaluation harness. See [Roadmap](#roadmap) and
-> [Known limitations](#known-limitations).
+> **Status:** M0–M6 complete - deterministic audit core, LangGraph agent workflow with HITL approval and
+> deterministic fallbacks, contract and clause agents, provider-agnostic LLM access, live evaluation, and
+> hardening: authenticated roles, payments written back to the ledger, and a hash-chained audit log.
+> See [Roadmap](#roadmap) and [Known limitations](#known-limitations).
 
 **Try it in two commands** (no API key required):
 
@@ -31,7 +31,12 @@ cp .env.example .env && docker compose up --build -d --wait
 - **11 finding codes**, each with quantified evidence; fail-closed on anything that couldn't be verified
 - **Claude reads, rules decide:** LLM extraction is grounded against the PDF's own text layer before it can
   influence anything
-- **Human approval that survives restarts**, a four-eyes rule, and a pre-payment re-audit
+- **Human approval that survives restarts**, a four-eyes rule on authenticated identities, and a
+  pre-payment re-audit
+- **Paid means recorded:** payments are written back to the ledger before money moves, so the same invoice
+  submitted again - or approved twice in parallel - is caught as a duplicate
+- **Every decision is on the record:** an append-only, hash-chained audit log of who did what, when, and with
+  what result; editing any entry is detected
 - **Contracts are audited too:** an agent reads each signed contract and reports every disagreement between
   its rate card and the ERP's copy - the numbers the auditor trusts are themselves checked
 - **Any LLM, one env var:** Claude directly, or any OpenAI-compatible endpoint (OpenRouter, vLLM, Ollama, ...)
@@ -41,7 +46,7 @@ cp .env.example .env && docker compose up --build -d --wait
   let a wrong verdict through ([results](#evaluation-results))
 - **Real contracts, too:** a clause agent is scored against expert annotations on 6 real agreements from
   [CUAD](https://www.atticusprojectai.org/cuad); every claimed clause must be backed by a verbatim quote
-- **247 tests**, mypy `--strict`, every ledger test run against both SQLite and Postgres
+- **273 tests**, mypy `--strict`, every ledger test run against both SQLite and Postgres
 
 ---
 
@@ -133,13 +138,27 @@ flowchart TD
   rules re-price the line and block it.
 - **Time-of-check ≠ time-of-use.** Approval can come days after the audit, so payment re-audits against fresh
   ledger facts first. A duplicate paid in the meantime is caught (`BLOCKED_AT_PAYMENT`).
+- **Identity comes from the credential, never the request body.** Each person has an API key bound to roles -
+  clerk, analyst, approver, auditor. Whoever authenticated is recorded as having keyed, mapped, or approved, so
+  the four-eyes rule compares identities rather than names typed into a form. A body that tries to name an
+  approver is rejected.
+- **Reserve, then pay, then record.** Before money moves, the payment is reserved in the ledger as `PENDING`;
+  the ledger's own unique constraint arbitrates races between runs, and the reservation is immediately visible
+  to every other run's duplicate check and PO budget. Every step is safe to re-run after a crash: a run's own
+  reservation is never mistaken for a duplicate of itself (a test proves the crash case, and fails without it).
+- **An audit log that can't be quietly rewritten.** Append-only at three layers: the application role can only
+  insert and read; a trigger rejects updates and deletes even from privileged roles; and entries are
+  hash-chained, so a database owner who disables the trigger still can't edit history without
+  `/v1/audit-log/verify` pointing at the exact entry.
 - **Money moves at most once, to the right place.** Payment is idempotent on the run id (LangGraph may re-run
   a node after a crash) and goes to the account on the vendor master record, never the one printed on the invoice.
 - **Fail closed.** "Couldn't check" never looks like "checked and clean": unknown vendors, missing contracts and
   ambiguous line items block or escalate.
 - **Shape validation ≠ semantic validation.** Pydantic rejects malformed data but deliberately *accepts* an
   invoice whose subtotal contradicts its lines - otherwise fraud would surface as a 422 instead of a finding.
-- **Least privilege, both ways.** The ledger role can't write; the checkpoint role can't read the ledger. The admin
+- **Least privilege, three ways.** The ledger reader can't write; the payments role can insert payments and set
+  their status but never delete them or touch another table; the checkpoint role can't read the ledger and can
+  only append to the audit log. The admin
   password never reaches the API container, which runs non-root on a read-only filesystem.
 - **Plain-JSON state.** Checkpoints hold only JSON - models are re-validated on read, and derived fields such as
   a finding's severity are recomputed rather than trusted, so a tampered checkpoint can't relabel a BLOCK.
@@ -154,11 +173,22 @@ Requires Docker with Compose v2.
 ```bash
 git clone https://github.com/zainabbas14/multi-agent-finance-auditor.git
 cd multi-agent-finance-auditor
-cp .env.example .env     # set the three passwords; optionally ANTHROPIC_API_KEY
+cp .env.example .env     # set the passwords and API keys; optionally an LLM key
 docker compose up --build
+./scripts/demo.sh        # end-to-end walkthrough, acting as a clerk, an approver and an auditor
 ```
 
-Interactive API docs: <http://localhost:8000/docs> · Scripted walkthrough: `./scripts/demo.sh`
+Interactive API docs: <http://localhost:8000/docs> (use **Authorize** with a key from `.env`).
+
+Every `/v1` call needs `Authorization: Bearer <key>`. The examples below assume the keys from `.env.example`:
+
+```bash
+CLERK=(-H "Authorization: Bearer change-me-clerk-key-0001")
+ANALYST=(-H "Authorization: Bearer change-me-analyst-key-02")
+APPROVER=(-H "Authorization: Bearer change-me-approver-key-3")
+AUDITOR=(-H "Authorization: Bearer change-me-auditor-key-004")
+JSON=(-H 'content-type: application/json')
+```
 
 ### The agent workflow, step by step
 
@@ -166,7 +196,7 @@ Interactive API docs: <http://localhost:8000/docs> · Scripted walkthrough: `./s
 G=tests/mock_data/generated
 
 # 1. Upload an invoice PDF
-RUN=$(curl -s -F "file=@$G/invoices/S01_clean_services.pdf;type=application/pdf" localhost:8000/v1/runs)
+RUN=$(curl -s "${CLERK[@]}" -F "file=@$G/invoices/S01_clean_services.pdf;type=application/pdf" localhost:8000/v1/runs)
 ID=$(echo "$RUN" | jq -r .run_id); echo "$RUN" | jq '{status, verdict, narrative, degradations}'
 ```
 
@@ -174,14 +204,19 @@ ID=$(echo "$RUN" | jq -r .run_id); echo "$RUN" | jq '{status, verdict, narrative
 - **Without a key:** the run degrades to `NEEDS_MANUAL_ENTRY`. Key the invoice in (here, from the fixture):
 
   ```bash
-  jq '{entered_by: "clerk.bea", invoice: .}' $G/requests/S01_clean_services.json \
-    | curl -s -X POST localhost:8000/v1/runs/$ID/extraction -H 'content-type: application/json' -d @- | jq .status
+  jq '{invoice: .}' $G/requests/S01_clean_services.json \
+    | curl -s "${CLERK[@]}" "${JSON[@]}" -X POST localhost:8000/v1/runs/$ID/extraction -d @- | jq .status
   ```
 
 ```bash
-# 2. Approve (a different person from whoever keyed it in)
-curl -s -X POST localhost:8000/v1/runs/$ID/decision -H 'content-type: application/json' \
-  -d '{"approved": true, "approver": "ap.manager"}' | jq '{status, payment}'
+# 2. Approve - as an approver; a clerk gets 403, and so would whoever keyed the invoice in
+curl -s "${APPROVER[@]}" "${JSON[@]}" -X POST localhost:8000/v1/runs/$ID/decision \
+  -d '{"approved": true}' | jq '{status, approver: .decision.approver, payment}'
+
+# 3. Repeat step 1 with the same PDF: the payment was written back, so the new run is BLOCKED as a duplicate
+# 4. Read the audit log and verify its chain
+curl -s "${AUDITOR[@]}" localhost:8000/v1/audit-log | jq -c '.[] | [.seq, .actor, .action, .outcome.status]'
+curl -s "${AUDITOR[@]}" localhost:8000/v1/audit-log/verify
 ```
 
 Upload `S03_rate_overcharge.pdf` or `S07_remit_to_changed.pdf` instead and the run stops at `BLOCKED` with
@@ -193,15 +228,15 @@ Upload `S09_unmatched_line_item.pdf`: its line says "Sr. Data Eng. consulting", 
 The run pauses at `AWAITING_MAPPING_REVIEW` with a proposed code; confirm it (or pick another, or `null` to reject):
 
 ```bash
-curl -s -X POST localhost:8000/v1/runs/$ID/mappings -H 'content-type: application/json' \
-  -d '{"reviewer": "ap.analyst", "decisions": [{"line": 1, "item_code": "SENIOR_ENG"}]}' | jq .status
+curl -s "${ANALYST[@]}" "${JSON[@]}" -X POST localhost:8000/v1/runs/$ID/mappings \
+  -d '{"decisions": [{"line": 1, "item_code": "SENIOR_ENG"}]}' | jq .status
 # -> AWAITING_APPROVAL (re-audited: 120.00/hr is at the contract ceiling)
 ```
 
 ### Contract reconciliation
 
 ```bash
-curl -s -F "file=@tests/mock_data/generated/contracts/MSA-HDS-2025-014.pdf;type=application/pdf" \
+curl -s "${ANALYST[@]}" -F "file=@tests/mock_data/generated/contracts/MSA-HDS-2025-014.pdf;type=application/pdf" \
   localhost:8000/v1/contracts/reconcile | jq
 ```
 
@@ -214,7 +249,7 @@ Returns `CONSISTENT`, `DRIFT` (with every `RATE_MISMATCH`, `MISSING_IN_ERP`, `MI
 LLM involved:
 
 ```bash
-curl -s -X POST localhost:8000/v1/audits -H 'content-type: application/json' \
+curl -s "${CLERK[@]}" "${JSON[@]}" -X POST localhost:8000/v1/audits \
   -d @tests/mock_data/generated/requests/S05_arithmetic_mismatch.json | jq
 ```
 
@@ -319,8 +354,8 @@ Every claim in this README is a test. Two jobs run on each push:
 
 | Job | What it proves |
 |---|---|
-| **quality** | ruff + format, mypy `--strict`, 247 tests against both SQLite and a Postgres service container, and that committed test fixtures match a fresh, byte-reproducible build |
-| **compose-smoke** | `docker compose up` from a clean checkout; all 8 golden scenarios replayed over HTTP; the full agent workflow with no LLM key (degraded parse → manual entry → approval); the API container **restarted mid-approval** with the approval still pending afterwards; the four-eyes rule returning `403`; final `PAID`; and the application's database role failing to write |
+| **quality** | ruff + format, mypy `--strict`, 273 tests against both SQLite and a Postgres service container, and that committed test fixtures match a fresh, byte-reproducible build |
+| **compose-smoke** | `docker compose up` from a clean checkout; unauthenticated calls refused (`401`); all 9 golden scenarios replayed over HTTP; the full agent workflow with no LLM key (degraded parse → manual entry → approval); the API container **restarted mid-approval** with the approval still pending afterwards; a clerk refused approval (`403`) and an identity smuggled in the body rejected (`422`); final `PAID` attributed to the authenticated approver; the **same invoice in a new run blocked as a duplicate** (written back); the audit log's chain verified; and every database role failing to do what it must not: the ledger reader can't write, the payments role can't delete, the app can't edit the audit log |
 
 The real Claude API is never called in CI. The workflow is tested with a scripted fake LLM - including the
 failure modes (unavailable, refusal, truncation, hallucinated values, "helpfully" corrected arithmetic) - and
@@ -384,13 +419,15 @@ src/auditor/
   workflow/        LangGraph state machine, run service, checkpointer wiring
   llm/             StructuredLLM port; Anthropic and OpenAI-compatible adapters
   documents/       content-addressed PDF store, text-layer extraction
+  auth.py          API-key principals and role checks (clerk, analyst, approver, auditor)
+  audit_log.py     append-only, hash-chained audit log (in-memory and Postgres)
   payments.py      idempotent simulated payment gateway
   ports.py         LedgerReader protocol (read-only)
-  adapters/        SQLite and Postgres ledger implementations, factory
+  adapters/        SQLite and Postgres ledger readers and payment write-back, factory
   api/app.py       FastAPI app factory, middleware, routes
   config.py        pydantic-settings
   logging_setup.py structured JSON logging with request IDs
-db/postgres/       schema, read-only ledger role, checkpoint role (docker-entrypoint-initdb.d)
+db/postgres/       schema, audit log, and the three least-privilege roles (docker-entrypoint-initdb.d)
 scripts/demo.sh    end-to-end walkthrough against a running stack
 evals/             live evaluation: golden set (python -m evals.run), CUAD contracts (python -m evals.cuad)
 tests/             unit, golden end-to-end (both backends), workflow (scripted fake LLM), API, live eval
@@ -404,11 +441,18 @@ tests/             unit, golden end-to-end (both backends), workflow (scripted f
 
 This is a portfolio system built to production standards, not a production system. The gaps, stated plainly:
 
-- **No authentication.** `approver` and `entered_by` are free-text fields; anyone who can reach the API can
-  approve. The four-eyes check compares names, not identities. (M6: real auth and roles.)
-- **Executed payments are not written back to the ledger.** The ledger is read-only by design and payments are
-  simulated, so the same invoice could be approved again in a *new* run. Within a run, payment is idempotent;
-  across runs it is not. (M6: durable payment outbox feeding the duplicate check.)
+- **Static API keys, not SSO.** Keys are hashed in memory and bound to roles, which is enough to make identity
+  and four-eyes real, but there is no expiry, rotation or MFA. Production would validate OIDC/JWT tokens from an
+  identity provider; only `auth.py` would change.
+- **Role denials are in the application log, not the audit log.** The audit log records every action a
+  principal was *allowed* to attempt, including four-eyes refusals; a `403` for the wrong role is logged
+  with the request id but not chained.
+- **Tamper-evident, not tamper-proof.** Someone who controls the database can rewrite the audit log and
+  recompute the chain from that point; verification catches edits, not a full rewrite. Production would anchor
+  the chain head externally or ship entries to write-once storage.
+- **Payments are simulated.** The write-back and idempotency are real; the bank is not. A real gateway would
+  also need reconciliation of `PENDING` rows left by a crash between reserving and paying - here a crashed run
+  completes on retry, but an abandoned one stays `PENDING` (blocking re-payment, the safe direction).
 - **Live numbers depend on the endpoint.** `docs/eval/` reports whatever model was configured. Through a
   third-party gateway, "which model answered" is what the gateway reports, not something this system can verify.
 - **Reasoning models can exhaust the token budget.** Output is capped at 4,096 tokens per call, reasoning
@@ -441,5 +485,10 @@ This is a portfolio system built to production standards, not a production syste
       endpoint), live evaluation harness with a "silently wrong" safety metric
 - [x] **M5** LLM-proposed line-item mappings with human confirmation (a review cycle in the graph); clause
       agent evaluated on real CUAD contracts
-- [ ] **M6** Authentication and roles for approvers, append-only audit log, async job queue for uploads,
-      durable payment outbox written back to the ledger
+- [x] **M6** Hardening: authenticated roles with identities taken from the credential, payments reserved and
+      written back to the ledger (cross-run duplicates and races caught), append-only hash-chained audit log,
+      three least-privilege database roles
+
+**Next, if this were going to production:** OIDC/SSO instead of static keys; an async job queue for uploads;
+a database-level lock for multi-replica decisions; external anchoring of the audit chain; and a real
+payment gateway with reconciliation of abandoned reservations.
