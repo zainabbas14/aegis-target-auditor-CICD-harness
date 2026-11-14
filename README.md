@@ -39,7 +39,9 @@ cp .env.example .env && docker compose up --build -d --wait
 - **Measured, not claimed:** across 33 documents and 3 models - from a 120B model down to a 1.7B one -
   **0 were auto-processed with the wrong outcome**. Weaker models sent more documents to a human; none
   let a wrong verdict through ([results](#evaluation-results))
-- **205 tests**, mypy `--strict`, every ledger test run against both SQLite and Postgres
+- **Real contracts, too:** a clause agent is scored against expert annotations on 6 real agreements from
+  [CUAD](https://www.atticusprojectai.org/cuad); every claimed clause must be backed by a verbatim quote
+- **247 tests**, mypy `--strict`, every ledger test run against both SQLite and Postgres
 
 ---
 
@@ -81,6 +83,9 @@ flowchart TD
         X["execute_payment<br/>re-audit on fresh facts → idempotent simulated wire"]
         P -->|grounded| A
         P -.->|"LLM down / ungrounded"| M --> A
+        PM["propose_mappings<br/><i>LLM proposes rate-card codes</i><br/>(sees no prices)"]
+        MR{{"⏸ await_mapping_review<br/>human confirms / rejects"}}
+        A -->|"unmatched lines"| PM --> MR -->|"re-audit"| A
         A --> E
         E -->|"BLOCK / REVIEW"| F
         E -->|clean| H
@@ -119,7 +124,13 @@ flowchart TD
   change the verdict.
 - **Human in the loop, done properly.** LangGraph `interrupt()` pauses clean invoices for approval; the Postgres
   checkpointer means a pending approval survives restarts and deploys. Four-eyes rule: whoever keyed an invoice
-  in by hand cannot approve it.
+  in by hand, or mapped its line items, cannot approve it.
+- **LLM proposes, human disposes, rules re-decide.** When an invoice line can't be matched to the contract's
+  rate card ("Sr. Data Eng. consulting"), the model proposes a code and a human confirms or rejects it; the
+  audit then re-runs on the confirmed mapping - a real cycle in the graph, which terminates because each line is
+  reviewed once. The mapper never sees prices: shown the ceilings, a model (or text planted in the invoice)
+  could pick whichever code makes an overcharge disappear. Confirming a cheaper code doesn't help either - the
+  rules re-price the line and block it.
 - **Time-of-check ≠ time-of-use.** Approval can come days after the audit, so payment re-audits against fresh
   ledger facts first. A duplicate paid in the meantime is caught (`BLOCKED_AT_PAYMENT`).
 - **Money moves at most once, to the right place.** Payment is idempotent on the run id (LangGraph may re-run
@@ -176,6 +187,17 @@ curl -s -X POST localhost:8000/v1/runs/$ID/decision -H 'content-type: applicatio
 Upload `S03_rate_overcharge.pdf` or `S07_remit_to_changed.pdf` instead and the run stops at `BLOCKED` with
 quantified findings - there is no approval path for it.
 
+### Line-item mapping review
+
+Upload `S09_unmatched_line_item.pdf`: its line says "Sr. Data Eng. consulting", which the rules won't guess at.
+The run pauses at `AWAITING_MAPPING_REVIEW` with a proposed code; confirm it (or pick another, or `null` to reject):
+
+```bash
+curl -s -X POST localhost:8000/v1/runs/$ID/mappings -H 'content-type: application/json' \
+  -d '{"reviewer": "ap.analyst", "decisions": [{"line": 1, "item_code": "SENIOR_ENG"}]}' | jq .status
+# -> AWAITING_APPROVAL (re-audited: 120.00/hr is at the contract ceiling)
+```
+
 ### Contract reconciliation
 
 ```bash
@@ -230,6 +252,11 @@ documents were auto-processed (grounded), field-level accuracy, outcome accuracy
 that one is a failure. The command exits non-zero if it is ever above zero. Results are committed under
 [`docs/eval/`](docs/eval/); the scoring code itself is tested in CI with a scripted model.
 
+Real contracts: `python -m evals.cuad` runs the clause agent over a committed subset of
+[CUAD](https://www.atticusprojectai.org/cuad) (6 supply / services / distribution agreements, 8 clause categories,
+48 expert labels - CC BY 4.0, The Atticus Project). It reports clauses found, *located* (quote overlaps the expert
+span), **false claims**, misses, and how often the agent withheld an answer it couldn't quote.
+
 ### Evaluation results
 
 November 2026 · OpenRouter free tier · `pdf_mode=text`, `json_mode=json_schema` · one run per model.
@@ -266,7 +293,7 @@ Every claim in this README is a test. Two jobs run on each push:
 
 | Job | What it proves |
 |---|---|
-| **quality** | ruff + format, mypy `--strict`, 205 tests against both SQLite and a Postgres service container, and that committed test fixtures match a fresh, byte-reproducible build |
+| **quality** | ruff + format, mypy `--strict`, 247 tests against both SQLite and a Postgres service container, and that committed test fixtures match a fresh, byte-reproducible build |
 | **compose-smoke** | `docker compose up` from a clean checkout; all 8 golden scenarios replayed over HTTP; the full agent workflow with no LLM key (degraded parse → manual entry → approval); the API container **restarted mid-approval** with the approval still pending afterwards; the four-eyes rule returning `403`; final `PAID`; and the application's database role failing to write |
 
 The real Claude API is never called in CI. The workflow is tested with a scripted fake LLM - including the
@@ -326,7 +353,8 @@ stale.
 src/auditor/
   domain/          enums (findings, severities, verdicts) and Pydantic models
   rules/engine.py  gather_facts() [I/O] + evaluate() [pure]
-  agents/          invoice parser + contract reader (LLM + grounding), explainer (LLM + template fallback)
+  agents/          invoice parser, contract reader, clause finder (LLM + grounding); line-item mapper
+                   (LLM proposals, human-confirmed); explainer (LLM + template fallback)
   workflow/        LangGraph state machine, run service, checkpointer wiring
   llm/             StructuredLLM port; Anthropic and OpenAI-compatible adapters
   documents/       content-addressed PDF store, text-layer extraction
@@ -338,7 +366,7 @@ src/auditor/
   logging_setup.py structured JSON logging with request IDs
 db/postgres/       schema, read-only ledger role, checkpoint role (docker-entrypoint-initdb.d)
 scripts/demo.sh    end-to-end walkthrough against a running stack
-evals/             live evaluation harness (python -m evals.run) -> docs/eval/
+evals/             live evaluation: golden set (python -m evals.run), CUAD contracts (python -m evals.cuad)
 tests/             unit, golden end-to-end (both backends), workflow (scripted fake LLM), API, live eval
 .github/workflows/ lint → types → tests (SQLite + Postgres) → fixture freshness → docker compose smoke test
                    (golden scenarios over HTTP, degraded agent path, restart-surviving approval, four-eyes)
@@ -369,8 +397,10 @@ This is a portfolio system built to production standards, not a production syste
   system refuses to trust them rather than adding OCR.
 - **Uploads are processed synchronously.** Fine for a demo; production would queue them. The per-run decision
   lock is per-process; multiple replicas would need a database lock.
-- **Line items are matched to the contract deterministically only.** Descriptions that don't match a rate-card
-  entry exactly are escalated to a human rather than fuzzy-matched; LLM-proposed mappings are not built yet.
+- **Quote grounding proves the words exist, not what they mean.** A clause agent that quotes a real sentence as
+  evidence for the wrong category passes grounding; the CUAD eval counts these as false claims, and a test
+  demonstrates the case.
+- **The CUAD eval is small.** 48 labels on 6 contracts is enough to show behaviour, not to rank models.
 
 ---
 
@@ -383,6 +413,7 @@ This is a portfolio system built to production standards, not a production syste
       checkpoints, manual-entry fallback, four-eyes, pre-payment re-audit, idempotent simulated payment
 - [x] **M4** Contract-reconciliation agent, provider-agnostic LLM port (Anthropic + any OpenAI-compatible
       endpoint), live evaluation harness with a "silently wrong" safety metric
-- [ ] **M5** LLM-proposed line-item mappings for human confirmation; real CUAD contracts in the eval set
+- [x] **M5** LLM-proposed line-item mappings with human confirmation (a review cycle in the graph); clause
+      agent evaluated on real CUAD contracts
 - [ ] **M6** Authentication and roles for approvers, append-only audit log, async job queue for uploads,
       durable payment outbox written back to the ledger

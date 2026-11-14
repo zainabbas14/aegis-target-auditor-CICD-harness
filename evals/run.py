@@ -33,6 +33,7 @@ from urllib.parse import urlparse
 
 from auditor.adapters.sqlite_ledger import SqliteLedger
 from auditor.agents.contracts import ContractReader, reconcile
+from auditor.agents.mapper import LineItemMapper, unresolved_lines
 from auditor.agents.parser import DocumentParser, ExtractionFailedError
 from auditor.config import Settings
 from auditor.domain.models import ExtractedInvoice
@@ -80,6 +81,8 @@ class DocResult:
     input_tokens: int | None = None
     output_tokens: int | None = None
     served_model: str | None = None
+    mappings_proposed: int = 0
+    mappings_correct: int = 0
 
     @property
     def outcome_correct(self) -> bool:
@@ -110,6 +113,8 @@ class EvalReport:
             "outcome_correct": sum(r.outcome_correct for r in docs),
             "silently_wrong": sum(r.silently_wrong for r in docs),
             "avg_latency_ms": round(sum(latencies) / len(latencies)) if latencies else None,
+            "mapping_lines": sum(r.mappings_proposed for r in docs),
+            "mapping_correct": sum(r.mappings_correct for r in docs),
             "input_tokens": sum(r.input_tokens or 0 for r in docs),
             "output_tokens": sum(r.output_tokens or 0 for r in docs),
         }
@@ -153,11 +158,39 @@ def eval_invoices(llm: StructuredLLM, built: Path, ledger: LedgerReader, limit: 
             got = invoice.model_dump(mode="json")
             result.grounded = True
             result.fields = {f: got[f] == expected[f] for f in INVOICE_FIELDS}
-            result.got_outcome = audit(invoice, ledger).verdict.value
-        _apply_stats(result, llm, started)
+            audited = audit(invoice, ledger)
+            result.got_outcome = audited.verdict.value
+        _apply_stats(result, llm, started)  # parse-call stats, before any mapping call overwrites them
+        if result.grounded:
+            _eval_mappings(result, llm, invoice=invoice, audited=audited, ledger=ledger, scenario=scenario)
         logger.info("invoice %s grounded=%s outcome=%s", sid, result.grounded, result.got_outcome or result.failure)
         results.append(result)
     return results
+
+
+def _eval_mappings(
+    result: DocResult,
+    llm: StructuredLLM,
+    *,
+    invoice: ExtractedInvoice,
+    audited: Any,
+    ledger: LedgerReader,
+    scenario: Any,
+) -> None:
+    """For lines the rules couldn't match, score the mapper's proposals against the fixture's true code."""
+    if audited.verdict.value == "BLOCK":
+        return
+    pending = unresolved_lines([f.model_dump(mode="json") for f in audited.findings])
+    if not pending:
+        return
+    vendor = ledger.vendor_by_tax_id(invoice.vendor_tax_id)
+    if vendor is None or vendor.contract_ref is None:
+        return
+    proposals, _ = LineItemMapper(llm).propose(
+        {n: invoice.line_items[n - 1] for n in pending}, ledger.rate_card(vendor.contract_ref)
+    )
+    result.mappings_proposed = len(proposals)
+    result.mappings_correct = sum(p.proposed_code == scenario.invoice.lines[p.line - 1].item_code for p in proposals)
 
 
 def eval_contracts(llm: StructuredLLM, built: Path, ledger: LedgerReader) -> list[DocResult]:
@@ -246,6 +279,13 @@ def render_markdown(report: EvalReport) -> str:
             f"**{s['silently_wrong']}** | {s['avg_latency_ms'] or '-'} ms | "
             f"{s['input_tokens']:,} / {s['output_tokens']:,} |"
         )
+    inv = report.summary("invoice")
+    if inv.get("mapping_lines"):
+        lines += [
+            "",
+            f"**Line-item mapping proposals:** {inv['mapping_correct']}/{inv['mapping_lines']} correct "
+            "(lines the rules could not match; proposals are confirmed by a human before use).",
+        ]
     lines += [
         "",
         "*Grounded* documents passed schema validation and had every critical value found in the PDF's own text "

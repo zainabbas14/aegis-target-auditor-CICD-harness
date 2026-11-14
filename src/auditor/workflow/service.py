@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict
 
 from auditor.documents.store import DocumentStore
 from auditor.domain.enums import RunStatus
-from auditor.workflow.graph import ApprovalDecision, ManualEntry
+from auditor.workflow.graph import ApprovalDecision, ManualEntry, MappingReview
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,14 @@ class SegregationOfDutiesError(Exception):
     pass
 
 
+class RunNotAwaitingMappingReviewError(Exception):
+    pass
+
+
+class InvalidMappingReviewError(Exception):
+    pass
+
+
 class RunView(BaseModel):
     """Public projection of a run's state."""
 
@@ -53,6 +61,9 @@ class RunView(BaseModel):
     extraction_error: dict[str, str] | None = None
     extraction_source: str | None = None
     entered_by: str | None = None
+    mapping_proposals: list[dict[str, Any]] | None = None
+    line_mappings: dict[str, str] = {}
+    mapped_by: str | None = None
     decision: dict[str, Any] | None = None
     payment: dict[str, Any] | None = None
     payment_recheck: dict[str, Any] | None = None
@@ -73,6 +84,9 @@ def _view(values: dict[str, Any]) -> RunView:
         extraction_error=values.get("extraction_error"),
         extraction_source=values.get("extraction_source"),
         entered_by=values.get("entered_by"),
+        mapping_proposals=values.get("mapping_proposals"),
+        line_mappings=values.get("line_mappings") or {},
+        mapped_by=values.get("mapped_by"),
         decision=values.get("decision"),
         payment=values.get("payment"),
         payment_recheck=values.get("payment_recheck"),
@@ -120,7 +134,12 @@ class RunService:
                 raise RunNotFoundError(run_id)
             if node not in snapshot.next:
                 status = snapshot.values.get("status", "unknown")
-                raise (RunNotAwaitingApprovalError if node == "await_approval" else RunNotAwaitingEntryError)(status)
+                errors = {
+                    "await_approval": RunNotAwaitingApprovalError,
+                    "await_manual_entry": RunNotAwaitingEntryError,
+                    "await_mapping_review": RunNotAwaitingMappingReviewError,
+                }
+                raise errors[node](status)
             if check is not None:
                 check(snapshot.values)
             self._graph.invoke(Command(resume=payload), self._config(run_id))
@@ -129,9 +148,23 @@ class RunService:
     def submit_extraction(self, run_id: str, entry: ManualEntry) -> RunView:
         return self._resume(run_id, "await_manual_entry", entry.model_dump(mode="json"))
 
+    def submit_mappings(self, run_id: str, review: MappingReview) -> RunView:
+        def validate(values: dict[str, Any]) -> None:
+            pending = {p["line"] for p in values.get("mapping_proposals") or []}
+            decided = [d.line for d in review.decisions]
+            if len(decided) != len(set(decided)) or set(decided) != pending:
+                raise InvalidMappingReviewError(f"decide every pending line exactly once: {sorted(pending)}")
+            valid = {e["item_code"] for e in (values.get("facts") or {}).get("rate_card", [])}
+            unknown = sorted({d.item_code for d in review.decisions if d.item_code and d.item_code not in valid})
+            if unknown:
+                raise InvalidMappingReviewError(f"not on this contract's rate card: {', '.join(unknown)}")
+
+        return self._resume(run_id, "await_mapping_review", review.model_dump(mode="json"), check=validate)
+
     def decide(self, run_id: str, decision: ApprovalDecision) -> RunView:
         def four_eyes(values: dict[str, Any]) -> None:
-            if values.get("entered_by") and values["entered_by"].casefold() == decision.approver.casefold():
-                raise SegregationOfDutiesError("the person who keyed this invoice cannot approve it")
+            for role, who in (("keyed this invoice", "entered_by"), ("mapped its line items", "mapped_by")):
+                if values.get(who) and values[who].casefold() == decision.approver.casefold():
+                    raise SegregationOfDutiesError(f"the person who {role} cannot approve it")
 
         return self._resume(run_id, "await_approval", decision.model_dump(mode="json"), check=four_eyes)

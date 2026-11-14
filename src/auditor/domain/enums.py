@@ -85,6 +85,7 @@ class RunStatus(StrEnum):
     NEEDS_MANUAL_ENTRY = "NEEDS_MANUAL_ENTRY"  # parser could not produce a trustworthy extraction
     BLOCKED = "BLOCKED"
     NEEDS_REVIEW = "NEEDS_REVIEW"
+    AWAITING_MAPPING_REVIEW = "AWAITING_MAPPING_REVIEW"  # human confirms LLM-proposed line mappings
     AWAITING_APPROVAL = "AWAITING_APPROVAL"  # HITL breakpoint
     REJECTED = "REJECTED"
     BLOCKED_AT_PAYMENT = "BLOCKED_AT_PAYMENT"  # clean at audit time, not clean at payment time

@@ -443,6 +443,22 @@ SCENARIOS: tuple[Scenario, ...] = (
         rationale="HDS-10249 (4,000.00) paid 5 days earlier. A monthly retainer billed twice in "
         "one month is suspicious but not proof - soft finding, route to analyst.",
     ),
+    Scenario(
+        scenario_id="S09_unmatched_line_item",
+        title="Unmatched line - abbreviated description the rules can't map to the rate card",
+        invoice=InvoiceSpec(
+            invoice_number="HDS-10262",
+            vendor_id=_HDS,
+            po_number="PO-2026-0418",
+            invoice_date=date(2026, 10, 28),
+            terms_days=30,
+            lines=(_ln("SENIOR_ENG", "Sr. Data Eng. consulting - Oct 2026 (2nd half)", "70", "120.00"),),
+        ),
+        expected_verdict=Verdict.REVIEW,
+        expected_findings=frozenset({FindingCode.UNRESOLVED_LINE_ITEM}),
+        rationale="The layout prints no codes and 'Sr. Data Eng.' doesn't match 'Senior Data Engineer'. The rules "
+        "escalate instead of guessing; once a human confirms SENIOR_ENG the rate (120.00) is at ceiling and clean.",
+    ),
 )
 
 

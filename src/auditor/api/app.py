@@ -3,6 +3,7 @@
     POST /v1/runs                      upload an invoice PDF -> agent workflow run
     GET  /v1/runs/{run_id}             run state (status, verdict, findings, narrative, ...)
     POST /v1/runs/{run_id}/extraction  human data entry when automated parsing failed (resumes the run)
+    POST /v1/runs/{run_id}/mappings    human confirms/rejects LLM-proposed line-item mappings (resumes the run)
     POST /v1/runs/{run_id}/decision    human approval / rejection (resumes the HITL breakpoint)
     POST /v1/audits                    ExtractedInvoice -> AuditResult (deterministic path, no LLM)
     POST /v1/contracts/reconcile       contract PDF -> rate card vs ERP mirror (drift report)
@@ -29,6 +30,7 @@ from auditor import __version__
 from auditor.adapters.factory import build_ledger
 from auditor.agents.contracts import ContractReader, ReconciliationReport, read_and_reconcile
 from auditor.agents.explainer import Explainer
+from auditor.agents.mapper import LineItemMapper
 from auditor.agents.parser import DocumentParser
 from auditor.config import Settings, get_settings
 from auditor.documents.store import PDF_MAGIC, DocumentStore
@@ -39,10 +41,12 @@ from auditor.payments import PaymentGateway, SimulatedPaymentGateway
 from auditor.ports import LedgerReader
 from auditor.rules.engine import RuleConfig, audit
 from auditor.workflow.factory import build_checkpointer, build_llm
-from auditor.workflow.graph import ApprovalDecision, ManualEntry, WorkflowDeps, build_graph
+from auditor.workflow.graph import ApprovalDecision, ManualEntry, MappingReview, WorkflowDeps, build_graph
 from auditor.workflow.service import (
+    InvalidMappingReviewError,
     RunNotAwaitingApprovalError,
     RunNotAwaitingEntryError,
+    RunNotAwaitingMappingReviewError,
     RunNotFoundError,
     RunService,
     RunView,
@@ -107,6 +111,7 @@ def create_app(  # noqa: PLR0915 - composition root + route table; splitting it 
             explainer=Explainer(explainer_llm),
             payments=payments or SimulatedPaymentGateway(),
             rule_config=rule_config,
+            mapper=LineItemMapper(explainer_llm),
         )
         app.state.ledger = led
         app.state.rule_config = rule_config
@@ -241,11 +246,36 @@ def create_app(  # noqa: PLR0915 - composition root + route table; splitting it 
             raise HTTPException(status.HTTP_409_CONFLICT, f"run is not awaiting manual entry (status: {exc})") from None
 
     @app.post(
+        "/v1/runs/{run_id}/mappings",
+        response_model=RunView,
+        tags=["agent workflow"],
+        responses={
+            409: {"description": "run is not awaiting mapping review"},
+            422: {"description": "decisions don't cover every pending line, or name a code not on the rate card"},
+        },
+    )
+    def submit_mappings(
+        run_id: RunId, review: MappingReview, runs: Annotated[RunService, Depends(_get_runs)]
+    ) -> RunView:
+        """Confirm, change, or reject (null) the proposed rate-card code for each unmatched line.
+        The audit then re-runs on the confirmed mapping."""
+        try:
+            return runs.submit_mappings(run_id, review)
+        except RunNotFoundError:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "run not found") from None
+        except RunNotAwaitingMappingReviewError as exc:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, f"run is not awaiting mapping review (status: {exc})"
+            ) from None
+        except InvalidMappingReviewError as exc:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from None
+
+    @app.post(
         "/v1/runs/{run_id}/decision",
         response_model=RunView,
         tags=["agent workflow"],
         responses={
-            403: {"description": "approver keyed this invoice in (four-eyes rule)"},
+            403: {"description": "approver keyed this invoice in or mapped its lines (four-eyes rule)"},
             409: {"description": "run is not awaiting approval"},
         },
     )

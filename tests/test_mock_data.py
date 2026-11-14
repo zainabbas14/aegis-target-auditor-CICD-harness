@@ -31,7 +31,7 @@ def test_scenario_mix(built: Path) -> None:
     assert verdicts.count("APPROVE_PENDING_HUMAN") >= 2
     assert verdicts.count("BLOCK") >= 3
     covered = {f for s in golden["scenarios"] for f in s["expected_findings"]}
-    assert covered == {f.value for f in BUSINESS_FINDINGS}, "every business finding needs a scenario"
+    assert covered >= {f.value for f in BUSINESS_FINDINGS}, "every business finding needs a scenario"
 
 
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: s.scenario_id)

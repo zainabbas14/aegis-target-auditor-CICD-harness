@@ -1,0 +1,453 @@
+{
+  "model": "nvidia/nemotron-3.5-super-vl:free",
+  "endpoint": "openrouter.ai",
+  "summary": {
+    "labels": 48,
+    "gold_present": 28,
+    "found": 23,
+    "false_claim": 1,
+    "correct_absent": 15,
+    "missed": 1,
+    "withheld": 8,
+    "located": 23,
+    "accuracy_on_answered": 0.95,
+    "precision": 0.9583333333333334,
+    "recall": 0.8214285714285714
+  },
+  "calls": [
+    {
+      "contract": "DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT",
+      "failure": null,
+      "latency_ms": 14625,
+      "input_tokens": 2249,
+      "output_tokens": 1952,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+    },
+    {
+      "contract": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT",
+      "failure": "llm_truncated",
+      "latency_ms": 37938,
+      "input_tokens": 2894,
+      "output_tokens": 6000,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+    },
+    {
+      "contract": "ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agreement2",
+      "failure": null,
+      "latency_ms": 16421,
+      "input_tokens": 3620,
+      "output_tokens": 2930,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+    },
+    {
+      "contract": "ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT",
+      "failure": null,
+      "latency_ms": 26078,
+      "input_tokens": 3739,
+      "output_tokens": 3848,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+    },
+    {
+      "contract": "LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT",
+      "failure": null,
+      "latency_ms": 18711,
+      "input_tokens": 3848,
+      "output_tokens": 2378,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+    },
+    {
+      "contract": "FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT",
+      "failure": null,
+      "latency_ms": 27296,
+      "input_tokens": 4706,
+      "output_tokens": 5024,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+    }
+  ],
+  "cells": [
+    {
+      "contract": "DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT",
+      "category": "Expiration Date",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT",
+      "category": "Renewal Term",
+      "gold_present": false,
+      "status": "ABSENT",
+      "outcome": "correct_absent",
+      "located": false
+    },
+    {
+      "contract": "DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT",
+      "category": "Governing Law",
+      "gold_present": true,
+      "status": "ABSENT",
+      "outcome": "missed",
+      "located": false
+    },
+    {
+      "contract": "DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT",
+      "category": "Termination For Convenience",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT",
+      "category": "Price Restrictions",
+      "gold_present": false,
+      "status": "ABSENT",
+      "outcome": "correct_absent",
+      "located": false
+    },
+    {
+      "contract": "DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT",
+      "category": "Minimum Commitment",
+      "gold_present": false,
+      "status": "ABSENT",
+      "outcome": "correct_absent",
+      "located": false
+    },
+    {
+      "contract": "DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT",
+      "category": "Audit Rights",
+      "gold_present": false,
+      "status": "ABSENT",
+      "outcome": "correct_absent",
+      "located": false
+    },
+    {
+      "contract": "DRAGONSYSTEMSINC_01_08_1999-EX-10.17-OUTSOURCING AGREEMENT",
+      "category": "Cap On Liability",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT",
+      "category": "Expiration Date",
+      "gold_present": true,
+      "status": "NOT_ANSWERED",
+      "outcome": "withheld",
+      "located": false
+    },
+    {
+      "contract": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT",
+      "category": "Renewal Term",
+      "gold_present": false,
+      "status": "NOT_ANSWERED",
+      "outcome": "withheld",
+      "located": false
+    },
+    {
+      "contract": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT",
+      "category": "Governing Law",
+      "gold_present": true,
+      "status": "NOT_ANSWERED",
+      "outcome": "withheld",
+      "located": false
+    },
+    {
+      "contract": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT",
+      "category": "Termination For Convenience",
+      "gold_present": false,
+      "status": "NOT_ANSWERED",
+      "outcome": "withheld",
+      "located": false
+    },
+    {
+      "contract": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT",
+      "category": "Price Restrictions",
+      "gold_present": false,
+      "status": "NOT_ANSWERED",
+      "outcome": "withheld",
+      "located": false
+    },
+    {
+      "contract": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT",
+      "category": "Minimum Commitment",
+      "gold_present": false,
+      "status": "NOT_ANSWERED",
+      "outcome": "withheld",
+      "located": false
+    },
+    {
+      "contract": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT",
+      "category": "Audit Rights",
+      "gold_present": true,
+      "status": "NOT_ANSWERED",
+      "outcome": "withheld",
+      "located": false
+    },
+    {
+      "contract": "FEDERATEDGOVERNMENTINCOMESECURITIESINC_04_28_2020-EX-99.SERV AGREE-SERVICES AGREEMENT",
+      "category": "Cap On Liability",
+      "gold_present": true,
+      "status": "NOT_ANSWERED",
+      "outcome": "withheld",
+      "located": false
+    },
+    {
+      "contract": "ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agreement2",
+      "category": "Expiration Date",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agreement2",
+      "category": "Renewal Term",
+      "gold_present": false,
+      "status": "ABSENT",
+      "outcome": "correct_absent",
+      "located": false
+    },
+    {
+      "contract": "ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agreement2",
+      "category": "Governing Law",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agreement2",
+      "category": "Termination For Convenience",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agreement2",
+      "category": "Price Restrictions",
+      "gold_present": false,
+      "status": "ABSENT",
+      "outcome": "correct_absent",
+      "located": false
+    },
+    {
+      "contract": "ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agreement2",
+      "category": "Minimum Commitment",
+      "gold_present": false,
+      "status": "ABSENT",
+      "outcome": "correct_absent",
+      "located": false
+    },
+    {
+      "contract": "ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agreement2",
+      "category": "Audit Rights",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "ScansourceInc_20190822_10-K_EX-10.38_11793958_EX-10.38_Distributor Agreement2",
+      "category": "Cap On Liability",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT",
+      "category": "Expiration Date",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT",
+      "category": "Renewal Term",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT",
+      "category": "Governing Law",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT",
+      "category": "Termination For Convenience",
+      "gold_present": false,
+      "status": "ABSENT",
+      "outcome": "correct_absent",
+      "located": false
+    },
+    {
+      "contract": "ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT",
+      "category": "Price Restrictions",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT",
+      "category": "Minimum Commitment",
+      "gold_present": false,
+      "status": "ABSENT",
+      "outcome": "correct_absent",
+      "located": false
+    },
+    {
+      "contract": "ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT",
+      "category": "Audit Rights",
+      "gold_present": false,
+      "status": "ABSENT",
+      "outcome": "correct_absent",
+      "located": false
+    },
+    {
+      "contract": "ULTRAGENYXPHARMACEUTICALINC_12_23_2013-EX-10.9-SUPPLY AGREEMENT",
+      "category": "Cap On Liability",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT",
+      "category": "Expiration Date",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT",
+      "category": "Renewal Term",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT",
+      "category": "Governing Law",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT",
+      "category": "Termination For Convenience",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT",
+      "category": "Price Restrictions",
+      "gold_present": false,
+      "status": "ABSENT",
+      "outcome": "correct_absent",
+      "located": false
+    },
+    {
+      "contract": "LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT",
+      "category": "Minimum Commitment",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT",
+      "category": "Audit Rights",
+      "gold_present": false,
+      "status": "ABSENT",
+      "outcome": "correct_absent",
+      "located": false
+    },
+    {
+      "contract": "LUCIDINC_04_15_2011-EX-10.9-DISTRIBUTOR AGREEMENT",
+      "category": "Cap On Liability",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT",
+      "category": "Expiration Date",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT",
+      "category": "Renewal Term",
+      "gold_present": false,
+      "status": "PRESENT",
+      "outcome": "false_claim",
+      "located": false
+    },
+    {
+      "contract": "FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT",
+      "category": "Governing Law",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT",
+      "category": "Termination For Convenience",
+      "gold_present": false,
+      "status": "ABSENT",
+      "outcome": "correct_absent",
+      "located": false
+    },
+    {
+      "contract": "FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT",
+      "category": "Price Restrictions",
+      "gold_present": false,
+      "status": "ABSENT",
+      "outcome": "correct_absent",
+      "located": false
+    },
+    {
+      "contract": "FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT",
+      "category": "Minimum Commitment",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT",
+      "category": "Audit Rights",
+      "gold_present": true,
+      "status": "PRESENT",
+      "outcome": "found",
+      "located": true
+    },
+    {
+      "contract": "FLOTEKINDUSTRIESINCCN_05_09_2019-EX-10.1-SUPPLY AGREEMENT",
+      "category": "Cap On Liability",
+      "gold_present": false,
+      "status": "ABSENT",
+      "outcome": "correct_absent",
+      "located": false
+    }
+  ]
+}

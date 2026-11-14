@@ -289,6 +289,39 @@
         "currency": "USD"
       },
       "item_codes_printed": false
+    },
+    {
+      "scenario_id": "S09_unmatched_line_item",
+      "title": "Unmatched line - abbreviated description the rules can't map to the rate card",
+      "invoice_pdf": "invoices/S09_unmatched_line_item.pdf",
+      "expected_verdict": "REVIEW",
+      "expected_findings": [
+        "UNRESOLVED_LINE_ITEM"
+      ],
+      "rationale": "The layout prints no codes and 'Sr. Data Eng.' doesn't match 'Senior Data Engineer'. The rules escalate instead of guessing; once a human confirms SENIOR_ENG the rate (120.00) is at ceiling and clean.",
+      "expected_extraction": {
+        "invoice_number": "HDS-10262",
+        "vendor_name": "Halcyon Data Systems Ltd.",
+        "vendor_tax_id": "HDS-TX-4471902",
+        "po_number": "PO-2026-0418",
+        "invoice_date": "2026-10-28",
+        "due_date": "2026-11-27",
+        "remit_account": "FAKE-GB00-HALC-0000-1001",
+        "line_items": [
+          {
+            "item_code": "SENIOR_ENG",
+            "description": "Sr. Data Eng. consulting - Oct 2026 (2nd half)",
+            "quantity": "70",
+            "unit_price": "120.00",
+            "amount": "8400.00"
+          }
+        ],
+        "subtotal": "8400.00",
+        "tax": "0.00",
+        "total": "8400.00",
+        "currency": "USD"
+      },
+      "item_codes_printed": false
     }
   ]
 }

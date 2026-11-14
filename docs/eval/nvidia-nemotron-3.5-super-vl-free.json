@@ -6,7 +6,7 @@
     "json_mode": "json_schema",
     "pdf_mode": "text"
   },
-  "started_at": "2026-11-12T18:41:42+00:00",
+  "started_at": "2026-11-14T02:52:47+00:00",
   "results": [
     {
       "kind": "invoice",
@@ -27,10 +27,12 @@
       },
       "expected_outcome": "APPROVE_PENDING_HUMAN",
       "got_outcome": "APPROVE_PENDING_HUMAN",
-      "latency_ms": 9528,
+      "latency_ms": 17356,
       "input_tokens": 1266,
-      "output_tokens": 1566,
-      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+      "output_tokens": 1785,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free",
+      "mappings_proposed": 0,
+      "mappings_correct": 0
     },
     {
       "kind": "invoice",
@@ -51,10 +53,12 @@
       },
       "expected_outcome": "APPROVE_PENDING_HUMAN",
       "got_outcome": "APPROVE_PENDING_HUMAN",
-      "latency_ms": 14891,
+      "latency_ms": 11157,
       "input_tokens": 1297,
-      "output_tokens": 2018,
-      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+      "output_tokens": 1963,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free",
+      "mappings_proposed": 0,
+      "mappings_correct": 0
     },
     {
       "kind": "invoice",
@@ -75,10 +79,12 @@
       },
       "expected_outcome": "BLOCK",
       "got_outcome": "BLOCK",
-      "latency_ms": 19095,
+      "latency_ms": 11468,
       "input_tokens": 1243,
-      "output_tokens": 1475,
-      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+      "output_tokens": 1837,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free",
+      "mappings_proposed": 0,
+      "mappings_correct": 0
     },
     {
       "kind": "invoice",
@@ -99,10 +105,12 @@
       },
       "expected_outcome": "BLOCK",
       "got_outcome": "BLOCK",
-      "latency_ms": 9503,
+      "latency_ms": 7755,
       "input_tokens": 1245,
-      "output_tokens": 1354,
-      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+      "output_tokens": 1442,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free",
+      "mappings_proposed": 0,
+      "mappings_correct": 0
     },
     {
       "kind": "invoice",
@@ -123,10 +131,12 @@
       },
       "expected_outcome": "BLOCK",
       "got_outcome": "BLOCK",
-      "latency_ms": 10593,
+      "latency_ms": 13533,
       "input_tokens": 1296,
-      "output_tokens": 2099,
-      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+      "output_tokens": 2412,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free",
+      "mappings_proposed": 0,
+      "mappings_correct": 0
     },
     {
       "kind": "invoice",
@@ -147,10 +157,12 @@
       },
       "expected_outcome": "BLOCK",
       "got_outcome": "BLOCK",
-      "latency_ms": 12200,
+      "latency_ms": 8987,
       "input_tokens": 1264,
-      "output_tokens": 1819,
-      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+      "output_tokens": 1601,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free",
+      "mappings_proposed": 0,
+      "mappings_correct": 0
     },
     {
       "kind": "invoice",
@@ -171,10 +183,12 @@
       },
       "expected_outcome": "BLOCK",
       "got_outcome": "BLOCK",
-      "latency_ms": 7172,
+      "latency_ms": 10005,
       "input_tokens": 1271,
-      "output_tokens": 1543,
-      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+      "output_tokens": 1738,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free",
+      "mappings_proposed": 0,
+      "mappings_correct": 0
     },
     {
       "kind": "invoice",
@@ -195,10 +209,38 @@
       },
       "expected_outcome": "REVIEW",
       "got_outcome": "REVIEW",
-      "latency_ms": 8255,
+      "latency_ms": 9149,
       "input_tokens": 1237,
-      "output_tokens": 1683,
-      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+      "output_tokens": 1705,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free",
+      "mappings_proposed": 0,
+      "mappings_correct": 0
+    },
+    {
+      "kind": "invoice",
+      "doc_id": "S09_unmatched_line_item",
+      "grounded": true,
+      "failure": null,
+      "fields": {
+        "invoice_number": true,
+        "vendor_tax_id": true,
+        "po_number": true,
+        "invoice_date": true,
+        "due_date": true,
+        "remit_account": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "line_items": true
+      },
+      "expected_outcome": "REVIEW",
+      "got_outcome": "REVIEW",
+      "latency_ms": 14890,
+      "input_tokens": 1243,
+      "output_tokens": 1768,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free",
+      "mappings_proposed": 1,
+      "mappings_correct": 1
     },
     {
       "kind": "contract",
@@ -215,10 +257,12 @@
       },
       "expected_outcome": "CONSISTENT",
       "got_outcome": "CONSISTENT",
-      "latency_ms": 6312,
+      "latency_ms": 10023,
       "input_tokens": 1759,
-      "output_tokens": 1159,
-      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+      "output_tokens": 1152,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free",
+      "mappings_proposed": 0,
+      "mappings_correct": 0
     },
     {
       "kind": "contract",
@@ -235,10 +279,12 @@
       },
       "expected_outcome": "CONSISTENT",
       "got_outcome": "CONSISTENT",
-      "latency_ms": 16856,
+      "latency_ms": 10804,
       "input_tokens": 1782,
-      "output_tokens": 2653,
-      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+      "output_tokens": 1475,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free",
+      "mappings_proposed": 0,
+      "mappings_correct": 0
     },
     {
       "kind": "contract",
@@ -255,22 +301,26 @@
       },
       "expected_outcome": "CONSISTENT",
       "got_outcome": "CONSISTENT",
-      "latency_ms": 7490,
+      "latency_ms": 6643,
       "input_tokens": 1779,
-      "output_tokens": 1003,
-      "served_model": "nvidia/nemotron-3.5-super-vl:free"
+      "output_tokens": 1087,
+      "served_model": "nvidia/nemotron-3.5-super-vl:free",
+      "mappings_proposed": 0,
+      "mappings_correct": 0
     }
   ],
   "summary": {
     "invoice": {
-      "documents": 8,
-      "grounded": 8,
+      "documents": 9,
+      "grounded": 9,
       "field_accuracy_on_grounded": 1.0,
-      "outcome_correct": 8,
+      "outcome_correct": 9,
       "silently_wrong": 0,
-      "avg_latency_ms": 11405,
-      "input_tokens": 10119,
-      "output_tokens": 13557
+      "avg_latency_ms": 11589,
+      "mapping_lines": 1,
+      "mapping_correct": 1,
+      "input_tokens": 11362,
+      "output_tokens": 16251
     },
     "contract": {
       "documents": 3,
@@ -278,9 +328,11 @@
       "field_accuracy_on_grounded": 1.0,
       "outcome_correct": 3,
       "silently_wrong": 0,
-      "avg_latency_ms": 10219,
+      "avg_latency_ms": 9157,
+      "mapping_lines": 0,
+      "mapping_correct": 0,
       "input_tokens": 5320,
-      "output_tokens": 4815
+      "output_tokens": 3714
     }
   }
 }

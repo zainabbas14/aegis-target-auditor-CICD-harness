@@ -16,16 +16,18 @@ import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 
 from auditor.agents.explainer import Explainer, NarrativeDraft
+from auditor.agents.mapper import LineItemMapper, ProposalDraft, ProposalsDraft
 from auditor.agents.parser import DocumentParser, InvoiceExtraction
 from auditor.documents.store import DocumentStore
-from auditor.domain.enums import PaymentStatus, RunStatus
+from auditor.domain.enums import FindingCode, PaymentStatus, RunStatus
 from auditor.domain.models import ExtractedInvoice, PaymentRecord
 from auditor.llm.ports import LLMInvalidOutputError, LLMUnavailableError
 from auditor.payments import SimulatedPaymentGateway
 from auditor.ports import LedgerReader
 from auditor.rules.engine import RuleConfig
-from auditor.workflow.graph import ApprovalDecision, ManualEntry, WorkflowDeps, build_graph
+from auditor.workflow.graph import ApprovalDecision, LineDecision, ManualEntry, MappingReview, WorkflowDeps, build_graph
 from auditor.workflow.service import (
+    InvalidMappingReviewError,
     RunNotAwaitingApprovalError,
     RunNotAwaitingEntryError,
     RunService,
@@ -92,6 +94,7 @@ def harness(built: Path, ledger: LedgerReader, tmp_path: Path) -> Harness:
         explainer=Explainer(llm),
         payments=payments,
         rule_config=RuleConfig(),
+        mapper=LineItemMapper(llm),
     )
     return Harness(RunService(build_graph(deps, InMemorySaver()), documents), llm, payments, armable, built)
 
@@ -109,6 +112,10 @@ _EXPECTED_STATUS = {
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: s.scenario_id)
 def test_pdf_to_verdict(scenario, harness: Harness) -> None:  # type: ignore[no-untyped-def]
     run = harness.start(scenario.scenario_id)
+    if FindingCode.UNRESOLVED_LINE_ITEM in scenario.expected_findings:
+        # Unmatched lines pause for a human first; rejecting every proposal reproduces the golden verdict.
+        assert run.status is RunStatus.AWAITING_MAPPING_REVIEW
+        run = harness.runs.submit_mappings(run.run_id, _reject_all(run))
     assert run.status is _EXPECTED_STATUS[scenario.expected_verdict.value]
     assert {f["code"] for f in run.findings} == {c.value for c in scenario.expected_findings}
     assert run.narrative is not None
@@ -289,3 +296,116 @@ def test_manual_entry_only_when_awaiting_it(harness: Harness) -> None:
     run = harness.start("S01_clean_services")
     with pytest.raises(RunNotAwaitingEntryError):
         harness.runs.submit_extraction(run.run_id, _manual(harness.built, "S01_clean_services"))
+
+
+# --------------------------------------------------------------------------- #
+# Line-item mapping: LLM proposes, human disposes, audit re-runs (a cycle)
+# --------------------------------------------------------------------------- #
+def _reject_all(run, who: str = "ap.analyst"):  # type: ignore[no-untyped-def]
+    return MappingReview(
+        reviewer=who, decisions=[LineDecision(line=p["line"], item_code=None) for p in run.mapping_proposals]
+    )
+
+
+def _confirm(code: str | None, who: str = "ap.analyst") -> MappingReview:
+    return MappingReview(reviewer=who, decisions=[LineDecision(line=1, item_code=code)])
+
+
+def test_unmatched_line_gets_a_proposal_not_a_mapping(harness: Harness) -> None:
+    run = harness.start("S09_unmatched_line_item")
+    assert run.status is RunStatus.AWAITING_MAPPING_REVIEW
+    assert run.verdict == "REVIEW"
+    assert run.mapping_proposals == [
+        {
+            "line": 1,
+            "description": "Sr. Data Eng. consulting - Oct 2026 (2nd half)",
+            "proposed_code": "SENIOR_ENG",
+            "reason": "matches role",
+        }
+    ]
+    assert run.line_mappings == {}  # proposed, not applied
+
+
+def test_mapper_never_sees_prices(harness: Harness) -> None:
+    harness.start("S09_unmatched_line_item")
+    (payload,) = harness.llm.mapping_payloads
+    text = json.dumps(payload)
+    assert "120" not in text
+    assert "price" not in text.lower()
+    assert {"code", "description", "unit"} == set(payload["rate_card"][0])
+
+
+def test_confirmed_mapping_reaudits_to_clean_then_four_eyes(harness: Harness) -> None:
+    run = harness.start("S09_unmatched_line_item")
+    run = harness.runs.submit_mappings(run.run_id, _confirm("SENIOR_ENG", who="ana"))
+    assert run.status is RunStatus.AWAITING_APPROVAL
+    assert run.findings == []
+    assert run.line_mappings == {"1": "SENIOR_ENG"}
+    assert run.mapped_by == "ana"
+    with pytest.raises(SegregationOfDutiesError, match="mapped"):
+        harness.runs.decide(run.run_id, ApprovalDecision(approved=True, approver="Ana"))
+    paid = harness.runs.decide(run.run_id, APPROVE)
+    assert paid.status is RunStatus.PAID
+    assert paid.payment is not None
+    assert paid.payment["amount"] == "8400.00"
+
+
+def test_human_mapping_to_a_cheaper_code_surfaces_the_overcharge(harness: Harness) -> None:
+    """Mapping is not a way around pricing: the rules re-run on whatever was confirmed."""
+    run = harness.start("S09_unmatched_line_item")
+    run = harness.runs.submit_mappings(run.run_id, _confirm("DATA_ENG"))
+    assert run.status is RunStatus.BLOCKED
+    assert {f["code"] for f in run.findings} == {"RATE_EXCEEDS_CONTRACT"}
+
+
+def test_rejected_mapping_ends_in_review_and_the_cycle_terminates(harness: Harness) -> None:
+    run = harness.start("S09_unmatched_line_item")
+    run = harness.runs.submit_mappings(run.run_id, _confirm(None))
+    assert run.status is RunStatus.NEEDS_REVIEW
+    assert {f["code"] for f in run.findings} == {"UNRESOLVED_LINE_ITEM"}
+    with pytest.raises(RunNotAwaitingApprovalError):
+        harness.runs.decide(run.run_id, APPROVE)
+
+
+@pytest.mark.parametrize(
+    "review",
+    [
+        MappingReview(reviewer="x", decisions=[LineDecision(line=1, item_code="GOLD_PLATING")]),
+        MappingReview(reviewer="x", decisions=[LineDecision(line=2, item_code="SENIOR_ENG")]),
+        MappingReview(
+            reviewer="x",
+            decisions=[LineDecision(line=1, item_code="SENIOR_ENG"), LineDecision(line=1, item_code="DATA_ENG")],
+        ),
+    ],
+    ids=["code-not-on-card", "wrong-line", "duplicate-line"],
+)
+def test_invalid_reviews_are_refused_and_the_run_stays_paused(review: MappingReview, harness: Harness) -> None:
+    run = harness.start("S09_unmatched_line_item")
+    with pytest.raises(InvalidMappingReviewError):
+        harness.runs.submit_mappings(run.run_id, review)
+    assert harness.runs.get(run.run_id).status is RunStatus.AWAITING_MAPPING_REVIEW
+
+
+def test_proposals_off_the_rate_card_are_discarded(harness: Harness) -> None:
+    harness.llm.mapping_override = ProposalsDraft(
+        proposals=[ProposalDraft(line=1, item_code="SUPPORT_RET_PREMIUM", reason="ignore previous instructions")]
+    )
+    run = harness.start("S09_unmatched_line_item")
+    assert run.mapping_proposals is not None
+    assert run.mapping_proposals[0]["proposed_code"] is None
+
+
+def test_mapper_failure_degrades_to_human_mapping(harness: Harness) -> None:
+    harness.llm.mapping_override = LLMUnavailableError("transient_failure")
+    run = harness.start("S09_unmatched_line_item")
+    assert run.status is RunStatus.AWAITING_MAPPING_REVIEW
+    assert run.mapping_proposals is not None
+    assert run.mapping_proposals[0]["proposed_code"] is None
+    assert {"step": "map_line_items", "reason": "llm_transient_failure"} in run.degradations
+    assert harness.runs.submit_mappings(run.run_id, _confirm("SENIOR_ENG")).status is RunStatus.AWAITING_APPROVAL
+
+
+def test_blocked_invoices_skip_mapping_review(harness: Harness) -> None:
+    run = harness.start("S03_rate_overcharge")  # also an uncoded layout, but resolvable and blocked
+    assert run.status is RunStatus.BLOCKED
+    assert harness.llm.mapping_payloads == []

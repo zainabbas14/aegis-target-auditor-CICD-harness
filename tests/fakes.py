@@ -10,6 +10,7 @@ from typing import Any
 
 from auditor.agents.contracts import ContractExtraction, RateLineExtraction
 from auditor.agents.explainer import NarrativeDraft
+from auditor.agents.mapper import ProposalDraft, ProposalsDraft
 from auditor.agents.parser import InvoiceExtraction
 from auditor.llm.ports import LLMError, Part, PdfPart, T, TextPart
 
@@ -65,6 +66,8 @@ class FakeLLM:
         self.parse_override: Callable[[InvoiceExtraction], InvoiceExtraction] | LLMError | None = None
         self.explain_override: LLMError | NarrativeDraft | None = None
         self.contract_override: Callable[[ContractExtraction], ContractExtraction] | LLMError | None = None
+        self.mapping_override: ProposalsDraft | LLMError | None = None
+        self.mapping_payloads: list[dict[str, Any]] = []
 
     def generate(
         self, *, output_type: type[T], system: str, content: Sequence[Part], max_tokens: int, purpose: str
@@ -91,6 +94,21 @@ class FakeLLM:
             if callable(self.contract_override):
                 contract = self.contract_override(contract)
             return contract  # type: ignore[return-value]
+        if output_type is ProposalsDraft:
+            first_text = content[0]
+            assert isinstance(first_text, TextPart)
+            payload = json.loads(first_text.text)
+            self.mapping_payloads.append(payload)
+            if isinstance(self.mapping_override, LLMError):
+                raise self.mapping_override
+            if isinstance(self.mapping_override, ProposalsDraft):
+                return self.mapping_override  # type: ignore[return-value]
+            return ProposalsDraft(  # type: ignore[return-value]
+                proposals=[
+                    ProposalDraft(line=ln["line"], item_code=_true_code(ln["description"]), reason="matches role")
+                    for ln in payload["invoice_lines"]
+                ]
+            )
         if output_type is NarrativeDraft:
             if isinstance(self.explain_override, LLMError):
                 raise self.explain_override
@@ -101,3 +119,14 @@ class FakeLLM:
             verdict = json.loads(first_text.text)["verdict"]
             return NarrativeDraft(summary=f"LLM summary for {verdict}.", recommended_action="Act.")  # type: ignore[return-value]
         raise AssertionError(f"unexpected output type {output_type}")
+
+
+def _true_code(description: str) -> str | None:
+    """The code the fixture author meant for a printed description (a perfect mapper's answer)."""
+    from tests.mock_data.fixtures import SCENARIOS  # noqa: PLC0415
+
+    for scenario in SCENARIOS:
+        for line in scenario.invoice.lines:
+            if line.description == description:
+                return line.item_code
+    return None

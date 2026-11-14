@@ -7,12 +7,14 @@ from pathlib import Path
 from auditor.adapters.sqlite_ledger import SqliteLedger
 from evals.run import render_markdown, run_eval
 from tests.fakes import FakeLLM
+from tests.mock_data.fixtures import SCENARIOS
 
 
 def test_perfect_model_scores_perfectly(built: Path, sqlite_ledger: SqliteLedger) -> None:
     report = run_eval(FakeLLM(built), built, sqlite_ledger, endpoint="fake")
     inv, con = report.summary("invoice"), report.summary("contract")
-    assert (inv["documents"], inv["grounded"], inv["outcome_correct"], inv["silently_wrong"]) == (8, 8, 8, 0)
+    n = len(SCENARIOS)
+    assert (inv["documents"], inv["grounded"], inv["outcome_correct"], inv["silently_wrong"]) == (n, n, n, 0)
     assert inv["field_accuracy_on_grounded"] == 1.0
     assert (con["documents"], con["outcome_correct"], con["silently_wrong"]) == (3, 3, 0)
 
@@ -40,3 +42,10 @@ def test_markdown_report(built: Path, sqlite_ledger: SqliteLedger) -> None:
     md = render_markdown(run_eval(FakeLLM(built), built, sqlite_ledger, endpoint="fake", limit=1))
     assert "| Invoices | 1 | 1/1 | 100% | 1/1 | **0** |" in md
     assert "S01_clean_services" in md
+
+
+def test_mapping_proposals_are_scored(built: Path, sqlite_ledger: SqliteLedger) -> None:
+    report = run_eval(FakeLLM(built), built, sqlite_ledger, include_contracts=False)
+    inv = report.summary("invoice")
+    assert (inv["mapping_lines"], inv["mapping_correct"]) == (1, 1)
+    assert "Line-item mapping proposals:** 1/1 correct" in render_markdown(report)

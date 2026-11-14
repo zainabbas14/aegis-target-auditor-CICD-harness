@@ -80,3 +80,24 @@ def test_decision_requires_an_approver(setup, built: Path) -> None:  # type: ign
     run = _upload(client, built, "S01_clean_services").json()
     resp = client.post(f"/v1/runs/{run['run_id']}/decision", json={"approved": True, "approver": "  "})
     assert resp.status_code == 422
+
+
+def test_mapping_review_over_http(setup, built: Path) -> None:  # type: ignore[no-untyped-def]
+    client, _ = setup
+    run = _upload(client, built, "S09_unmatched_line_item").json()
+    assert run["status"] == "AWAITING_MAPPING_REVIEW"
+    assert run["mapping_proposals"][0]["proposed_code"] == "SENIOR_ENG"
+    url = f"/v1/runs/{run['run_id']}/mappings"
+
+    bad = client.post(url, json={"reviewer": "ana", "decisions": [{"line": 1, "item_code": "NOT_A_CODE"}]})
+    assert bad.status_code == 422
+    assert "rate card" in bad.json()["detail"]
+
+    ok = client.post(url, json={"reviewer": "ana", "decisions": [{"line": 1, "item_code": "SENIOR_ENG"}]})
+    assert ok.status_code == 200
+    assert ok.json()["status"] == "AWAITING_APPROVAL"
+
+    again = client.post(url, json={"reviewer": "ana", "decisions": [{"line": 1, "item_code": "SENIOR_ENG"}]})
+    assert again.status_code == 409
+    keyer = client.post(f"/v1/runs/{run['run_id']}/decision", json={"approved": True, "approver": "ana"})
+    assert keyer.status_code == 403
