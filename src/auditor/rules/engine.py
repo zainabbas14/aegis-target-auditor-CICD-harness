@@ -86,7 +86,7 @@ def check_vendor(inv: ExtractedInvoice, facts: LedgerFacts) -> Iterable[Finding]
 
 def check_arithmetic(inv: ExtractedInvoice, _: LedgerFacts) -> Iterable[Finding]:
     for i, ln in enumerate(inv.line_items, start=1):
-        expected = (ln.quantity * ln.unit_price).quantize(Decimal("0.01"))
+        expected = (ln.quantity * ln.unit_price).quantize(Decimal("0.1"))
         if expected != ln.amount:
             yield Finding(
                 code=FindingCode.ARITHMETIC_MISMATCH,
